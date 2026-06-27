@@ -1,0 +1,10 @@
+1. I was unauthroised to login
+
+When I was hitting /api/auth/login endpoint in Postman on my VS Code. I got 401 unauthorised, with following body:
+{"detail":"User not found","code":"user_not_found"}
+
+Searching on ChatGPT gave suggestions about correct username, email stuff and checking settings and all. But the crazy is, it is Cookies.
+
+Yes, I was working on someother project, and duplicated the test API requests, and when I hit login, the old cookies was in the API request, and instead of login, it tried to find user, as per the token in the cookies, and that's why "User not found"
+
+So, from next time, check the Cookies in Postman, and delete them, otherwise, it will was 30 mins of life like it happend in this case.

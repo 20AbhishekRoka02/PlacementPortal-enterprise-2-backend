@@ -1,0 +1,2 @@
+1. Made Login API with dj-rest-auth, so I have almost all traditional auth things
+2. Make Login page in ShadCN UI using it's login 04 block, then work on mfa

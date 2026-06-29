@@ -8,3 +8,5 @@ Searching on ChatGPT gave suggestions about correct username, email stuff and ch
 Yes, I was working on someother project, and duplicated the test API requests, and when I hit login, the old cookies was in the API request, and instead of login, it tried to find user, as per the token in the cookies, and that's why "User not found"
 
 So, from next time, check the Cookies in Postman, and delete them, otherwise, it will was 30 mins of life like it happend in this case.
+
+2. Update login and user_detail APIs to return user role also

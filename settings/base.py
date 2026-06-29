@@ -165,6 +165,7 @@ REST_AUTH = {
     'JWT_AUTH_REFRESH_COOKIE': 'refresh',
     'JWT_AUTH_HTTPONLY': True,
     'JWT_AUTH_SAMESITE': 'Lax',
+    "USER_DETAILS_SERIALIZER": "users.serializers.CustomUserDetailsSerializer",
 }
 
 # REST_AUTH = {
@@ -207,3 +208,5 @@ ACCOUNT_EMAIL_REQUIRED = True
 # ACCOUNT_FORMS = {
 #     'login': 'accounts.forms.CustomLoginForm',
 # }
+
+

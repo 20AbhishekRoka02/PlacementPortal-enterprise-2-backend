@@ -13,3 +13,22 @@ class Job(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     deadline = models.DateTimeField(null=True, blank=True)
+
+class Application(models.Model):
+    class ApplicationStatus(models.TextChoices):
+        APPLIED = "applied", ("Applied")
+        REJECTED = "rejected", ("Rejected")
+        PLACED = "placed", ("Placed")
+
+    student = models.ForeignKey('student.Student', on_delete=models.CASCADE, related_name='applications')
+    job = models.ForeignKey(Job, on_delete=models.CASCADE, related_name='applications')
+    status = models.CharField(
+        max_length=10,
+        choices=ApplicationStatus.choices,
+        default=ApplicationStatus.APPLIED,
+    )
+    applied_at = models.DateTimeField(auto_now_add=True)
+    status_updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.student.user.email} applied for {self.job.title}"

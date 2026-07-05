@@ -16,14 +16,15 @@ class Job(models.Model):
 
 class Application(models.Model):
     class ApplicationStatus(models.TextChoices):
-        APPLIED = "applied", ("Applied")
-        REJECTED = "rejected", ("Rejected")
-        PLACED = "placed", ("Placed")
+        NOT_APPLIED = "Not Applied", ("Not Applied")
+        APPLIED = "Applied", ("Applied")
+        REJECTED = "Rejected", ("Rejected")
+        PLACED = "Placed", ("Placed")
 
     student = models.ForeignKey('student.Student', on_delete=models.CASCADE, related_name='applications')
     job = models.ForeignKey(Job, on_delete=models.CASCADE, related_name='applications')
     status = models.CharField(
-        max_length=10,
+        max_length=255,
         choices=ApplicationStatus.choices,
         default=ApplicationStatus.APPLIED,
     )

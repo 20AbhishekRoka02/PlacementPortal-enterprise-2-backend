@@ -15,6 +15,7 @@ class JobViewSet(ModelViewSet):
             'list': JobListSerializer,
             'retrieve': JobDetailSerializer
         }
+        print("self.action: ", self.action)
         return serializer_classes.get(self.action, JobSerializer)
 
     def list(self, request, *args, **kwargs):
@@ -34,7 +35,8 @@ class JobViewSet(ModelViewSet):
                 print("Error: ", e)
                 return Response(status=status.HTTP_404_NOT_FOUND)
         serializer = self.get_serializer_class()
-        return Response({"data": serializer(record).data})
+        print("serializer is: ", serializer)
+        return Response({"data": serializer(record, context={"request": request}).data})
 
 
 class ApplicationViewSet(ModelViewSet):
@@ -46,9 +48,17 @@ class ApplicationViewSet(ModelViewSet):
         student = request.user.student_profile
         job = request.data.get("job", None)
         status = Application.ApplicationStatus.APPLIED
-        Application.objects.create(
-            student=student,
-            job=Job.objects.filter(pk=job).first(),
-            status=status
-        )
+        # Application.objects.create(
+            # student=student,
+            # job=Job.objects.filter(pk=job).first(),
+            # status=status
+        # )
+        try:
+            Application.objects.create(
+                student=student,
+                job=Job.objects.filter(pk=job).first(),
+                status=status
+            )
+        except Exception as e:
+            print("error: ", e)
         return Response({"data": "Application submitted successfully"})

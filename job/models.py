@@ -33,3 +33,11 @@ class Application(models.Model):
 
     def __str__(self):
         return f"{self.student.user.email} applied for {self.job.title}"
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['student', 'job'],
+                name='unique_student_job'  # Must be unique in DB
+            )
+        ]

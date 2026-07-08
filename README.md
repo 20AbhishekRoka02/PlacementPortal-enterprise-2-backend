@@ -27,3 +27,11 @@ Forgot Password, 2FA
 3. Student will apply to job post
 4. Company will see the application
 5. Student Resume information in DB
+
+
+Things to be implemented at Student side:
+1. Application Listing
+2. Application Description
+3. Resume mgmt
+4. Job and Application page filters
+5. Profile

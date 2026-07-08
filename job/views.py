@@ -3,7 +3,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
 from job.models import Job, Application
-from job.serializers import JobSerializer, JobListSerializer, JobDetailSerializer
+from job.serializers import JobSerializer, JobListSerializer, JobDetailSerializer, ApplicationListSerializer
 
 # Create your views here.
 class JobViewSet(ModelViewSet):
@@ -42,17 +42,13 @@ class JobViewSet(ModelViewSet):
 class ApplicationViewSet(ModelViewSet):
     permission_classes = [IsAuthenticated]
     queryset = Application.objects.all()
+    serializer_class = ApplicationListSerializer
 
     def create(self, request):
         # return super().create(request)
         student = request.user.student_profile
         job = request.data.get("job", None)
         status = Application.ApplicationStatus.APPLIED
-        # Application.objects.create(
-            # student=student,
-            # job=Job.objects.filter(pk=job).first(),
-            # status=status
-        # )
         try:
             Application.objects.create(
                 student=student,

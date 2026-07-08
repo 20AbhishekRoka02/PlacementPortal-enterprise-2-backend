@@ -47,3 +47,21 @@ class JobListSerializer(serializers.ModelSerializer):
 class JobDetailSerializer(JobListSerializer):
     class Meta(JobListSerializer.Meta):
         fields = JobListSerializer.Meta.fields + ['description']
+
+
+class ApplicationListSerializer(serializers.ModelSerializer):
+    id = serializers.SerializerMethodField(read_only=True, method_name="get_application_id")
+    title = serializers.SerializerMethodField(read_only=True, method_name="get_job_title")
+    company = serializers.SerializerMethodField(read_only=True, method_name="get_company_name")
+    class Meta:
+        model = Application
+        fields = ["id", "title", "company", "status", "applied_at"]
+
+    def get_application_id(self, obj):
+        return obj.pk
+
+    def get_job_title(self, obj):
+        return obj.job.title
+
+    def get_company_name(self, obj):
+        return obj.job.company.name

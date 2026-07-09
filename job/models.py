@@ -30,6 +30,14 @@ class Application(models.Model):
     )
     applied_at = models.DateTimeField(auto_now_add=True)
     status_updated_at = models.DateTimeField(auto_now=True)
+    # Snapshots
+    job_title = models.TextField(default="")
+    job_description = RichTextField(default="")
+    job_location = models.CharField(max_length=255, default="")
+    job_salary = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    student_phone_number = models.CharField(max_length=20, blank=True)
+    student_whatsapp_number = models.CharField(max_length=20, blank=True)
+    student_email_id = models.EmailField(max_length=254, unique=True, null=True, blank=True)
 
     def __str__(self):
         return f"{self.student.user.email} applied for {self.job.title}"

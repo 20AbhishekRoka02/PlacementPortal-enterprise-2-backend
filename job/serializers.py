@@ -65,3 +65,8 @@ class ApplicationListSerializer(serializers.ModelSerializer):
 
     def get_company_name(self, obj):
         return obj.job.company.name
+
+
+class ApplicationDetailSerializer(ApplicationListSerializer):
+    class Meta(ApplicationListSerializer.Meta):
+        fields = ApplicationListSerializer.Meta.fields + ['job_title', 'job_description', 'job_location', 'job_salary', 'student_phone_number', 'student_whatsapp_number', 'student_email_id']

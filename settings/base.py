@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     'student',
     'job',
     'course',
+    'configs',
     # 'appconfig',
     'django_extensions',
     'ckeditor',

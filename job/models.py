@@ -1,6 +1,11 @@
-from django.db import models
+from django.db import models, transaction
 from ckeditor.fields import RichTextField
 from course.models import Batch
+from django.core.validators import FileExtensionValidator, MaxValueValidator
+from django.core.exceptions import ValidationError
+from job.helpers import file_size_in_kbs
+from decimal import Decimal
+from student.models import Student
 
 # Create your models here.
 class Job(models.Model):
@@ -49,3 +54,49 @@ class Application(models.Model):
                 name='unique_student_job'  # Must be unique in DB
             )
         ]
+
+
+class Resume(models.Model):
+    student = models.ForeignKey('student.Student', on_delete=models.CASCADE, related_name='resumes')
+    size = models.DecimalField(max_digits=6, decimal_places=2, default=0.0,  validators=[
+            MaxValueValidator(Decimal('20.00')) # maximum allowed value
+        ])
+    file_name = models.TextField(blank=True, null=True, default="")
+    file = models.FileField(upload_to="media/resumes", validators=[FileExtensionValidator(allowed_extensions=["pdf"])])
+
+    def clean(self):
+        super().clean()
+
+        if self.pk is None:
+            with transaction.atomic():
+                student_locked = (
+                    Student
+                    .objects.select_for_update()
+                    .get(pk=self.student.pk)
+                )
+                # 2. Inside the lock, safe to count accurately
+                existing_count = Resume.objects.filter(student=student_locked).count()
+
+                if existing_count >= 10:
+                    raise ValidationError({
+                        'file': "You cannot upload more than 10 resumes."
+                    })
+
+            if file_size_in_kbs(self.file.size) > Decimal('20.00'):
+                raise ValidationError({
+                    'size': "You cannot uploade file size more than 20 KB"
+                })
+
+        if self.size > Decimal('20.00'):
+            raise ValidationError({
+                'size': "You cannot uploade file size more than 20 KB"
+                })
+
+    def save(self, *args, **kwargs):
+        if Resume.objects.filter(student=self.student).count() < 10:
+            self.size = file_size_in_kbs(self.file.size)
+            self.file_name = self.file.name
+            self.full_clean()
+            return super().save(*args, **kwargs)
+        else:
+            raise Exception("Students cannot have more than 10 resumes")

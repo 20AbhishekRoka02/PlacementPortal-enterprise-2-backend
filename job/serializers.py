@@ -1,5 +1,7 @@
 from rest_framework import serializers
-from job.models import Job, Application
+from job.models import Job, Application, Resume
+from job.helpers import file_size_in_kbs
+
 class JobSerializer(serializers.ModelSerializer):
     class Meta:
         model = Job
@@ -70,3 +72,44 @@ class ApplicationListSerializer(serializers.ModelSerializer):
 class ApplicationDetailSerializer(ApplicationListSerializer):
     class Meta(ApplicationListSerializer.Meta):
         fields = ApplicationListSerializer.Meta.fields + ['job_title', 'job_description', 'job_location', 'job_salary', 'student_phone_number', 'student_whatsapp_number', 'student_email_id']
+
+
+class ResumeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Resume
+        fields = "__all__"
+        
+
+class ResumeListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Resume
+        fields = "__all__"
+
+
+class ResumeCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Resume
+        fields = ["size", "file_name", "file"]
+    
+    def validate_file(self, file):
+        if file.size > 20 * 1024:
+            raise serializers.ValidationError(
+                "Resume cannot be larger than 20 KB."
+            )
+
+        if not file.name.lower().endswith(".pdf"):
+            raise serializers.ValidationError(
+                "Only PDF resumes are allowed.s"
+            )
+        return file
+
+    def create(self, validated_data):
+        request = self.context.get("request")
+        uploaded_file = validated_data["file"]
+        size = file_size_in_kbs(uploaded_file.size)
+        return Resume.objects.create(
+            student=request.user.student_profile,
+            size=file_size_in_kbs(uploaded_file.size),
+            file_name=uploaded_file.name,
+            **validated_data
+        )

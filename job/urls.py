@@ -1,7 +1,8 @@
-from .views import JobViewSet, ApplicationViewSet
+from .views import JobViewSet, ApplicationViewSet, ResumeViewSet
 from rest_framework.routers import DefaultRouter
 from django.urls import path, include
 router = DefaultRouter()
+router.register(r'resumes', ResumeViewSet, basename='resume')
 router.register(r'applications', ApplicationViewSet, basename='application')
 router.register(r'jobs', JobViewSet, basename='job')
 

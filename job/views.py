@@ -2,8 +2,17 @@ from rest_framework.viewsets import ModelViewSet
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
-from job.models import Job, Application
-from job.serializers import JobSerializer, JobListSerializer, JobDetailSerializer, ApplicationListSerializer, ApplicationDetailSerializer
+from job.models import Job, Application, Resume
+from job.serializers import (
+    JobSerializer,
+    JobListSerializer,
+    JobDetailSerializer,
+    ApplicationListSerializer,
+    ApplicationDetailSerializer,
+    ResumeSerializer,
+    ResumeListSerializer,
+    ResumeCreateSerializer)
+from job.helpers import file_size_in_kbs
 
 # Create your views here.
 class JobViewSet(ModelViewSet):
@@ -97,3 +106,41 @@ class ApplicationViewSet(ModelViewSet):
         serializer = self.get_serializer_class()
         print("serializer is: ", serializer)
         return Response({"data": serializer(record, context={"request": request}).data})
+
+
+class ResumeViewSet(ModelViewSet):
+    permission_classes = [IsAuthenticated]
+    queryset = Resume.objects.all()
+
+    def get_serializer_class(self):
+        serializer_classes = {
+            'create': ResumeCreateSerializer,
+            'list': ResumeListSerializer,
+            # 'retrieve': JobDetailSerializer
+        }
+        print("self.action: ", self.action)
+        return serializer_classes.get(self.action, ResumeSerializer)
+    
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    
+    def perform_create(self, serializer):
+        serializer.save()
+
+    def list(self, request, *args, **kwargs):
+        student = request.user.student_profile
+        serializer = self.get_serializer_class()
+        return Response({"data": serializer(self.queryset.filter(student=student), many=True, context={"request": request}).data})
+    
+    def destroy(self, request, pk=None):
+        student = request.user.student_profile
+        resume = Resume.objects.filter(pk=pk, student=student).first()
+        if not resume:
+            return Response({"data": "Resume Not Found!"}, status=status.HTTP_404_NOT_FOUND)
+
+        resume.delete()
+        return Response({"data": "Resume deleted successfully!"}, status=status.HTTP_200_OK)
+    

@@ -6,6 +6,7 @@ from django.core.exceptions import ValidationError
 from job.helpers import file_size_in_kbs
 from decimal import Decimal
 from student.models import Student
+import os
 
 # Create your models here.
 class Job(models.Model):
@@ -63,10 +64,15 @@ class Resume(models.Model):
         ])
     file_name = models.TextField(blank=True, null=True, default="")
     file = models.FileField(upload_to="media/resumes", validators=[FileExtensionValidator(allowed_extensions=["pdf"])])
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def clean(self):
         super().clean()
-
+        if self.file is None:
+            raise ValidationError({
+                'file': "You have to upload a file."
+                })
         if self.pk is None:
             with transaction.atomic():
                 student_locked = (
@@ -100,3 +106,8 @@ class Resume(models.Model):
             return super().save(*args, **kwargs)
         else:
             raise Exception("Students cannot have more than 10 resumes")
+    
+    def delete(self, *args, **kwargs):
+        if self.file and os.path.isfile(self.file.path):
+            os.remove(self.file.path)
+        super().delete(*args, **kwargs)

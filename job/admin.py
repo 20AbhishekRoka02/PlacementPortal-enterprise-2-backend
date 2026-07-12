@@ -9,7 +9,7 @@ class JobAdmin(admin.ModelAdmin):
 
 
 class ResumeAdmin(admin.ModelAdmin):
-    list_display = ("pk", "student__user__email", "file_name", "size", "file")
+    list_display = ("pk", "student__user__email", "file_name", "size", "file", 'created_at', 'updated_at')
 
 admin.site.register(Job, JobAdmin)
 admin.site.register(Resume, ResumeAdmin)

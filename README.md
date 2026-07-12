@@ -32,6 +32,6 @@ Forgot Password, 2FA
 Things to be implemented at Student side:
 1. Application Listing - done
 2. Application Description - done
-3. Resume mgmt (restrict number of resume uploaded by the student, and size, and CRUD)
+3. Resume mgmt (restrict number of resume uploaded by the student, and size, and CRUD) - add config for resume
 4. Job and Application page filters
 5. Profile

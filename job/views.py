@@ -64,10 +64,17 @@ class ApplicationViewSet(ModelViewSet):
         # return super().create(request)
         student = request.user.student_profile
         job = request.data.get("job", None)
+        resume_id = request.data.get("resume_id", None)
+        if not resume_id or not isinstance(resume_id, int):
+            return Response({"data": "Given resume_id doesn't exists"}, status=status.HTTP_400_BAD_REQUEST)
+        resume = Resume.objects.filter(student=student, pk=resume_id).first()
+        if not resume:
+            return Response({"data": "Resume doesn't exists"}, status=status.HTTP_404_NOT_FOUND)
+        
         if not job:
             return Response({"data": "Given job doesn't exists"}, status=status.HTTP_400_BAD_REQUEST)
         job = Job.objects.filter(pk=job).first()
-        status = Application.ApplicationStatus.APPLIED
+        application_status = Application.ApplicationStatus.APPLIED
         application_kwargs = {
             "job_title": job.title,
             "job_description": job.description,
@@ -81,11 +88,12 @@ class ApplicationViewSet(ModelViewSet):
             Application.objects.create(
                 student=student,
                 job=job,
-                status=status,
-                **application_kwargs
+                status=application_status,
+                resume=resume,
+                **application_kwargs,
             )
         except Exception as e:
-            print("error: ", e)
+            return Response({"data": f"Error: {e}"}, status=status.HTTP_400_BAD_REQUEST)
         return Response({"data": "Application submitted successfully"})
 
     def list(self, request, *args, **kwargs):

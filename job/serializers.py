@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from job.models import Job, Application, Resume
 from job.helpers import file_size_in_kbs
-
+from decimal import Decimal
 class JobSerializer(serializers.ModelSerializer):
     class Meta:
         model = Job
@@ -70,8 +70,25 @@ class ApplicationListSerializer(serializers.ModelSerializer):
 
 
 class ApplicationDetailSerializer(ApplicationListSerializer):
+    resume_file_name = serializers.SerializerMethodField(read_only=True, method_name="get_resume_file_name")
+    resume_file_size = serializers.SerializerMethodField(read_only=True, method_name="get_resume_file_size")
+    
     class Meta(ApplicationListSerializer.Meta):
-        fields = ApplicationListSerializer.Meta.fields + ['job_title', 'job_description', 'job_location', 'job_salary', 'student_phone_number', 'student_whatsapp_number', 'student_email_id']
+        fields = ApplicationListSerializer.Meta.fields + [
+            'job_title', 'job_description', 'job_location', 'job_salary', 'student_phone_number', 
+            'student_whatsapp_number', 'student_email_id', 'resume_file_name', 'resume_file_size']
+    
+    def get_resume_file_name(self, obj):
+        resume = obj.resume
+        if resume:
+            return resume.file_name
+        return ""
+    
+    def get_resume_file_size(self, obj):
+        resume = obj.resume
+        if resume:
+            return resume.size
+        return Decimal("0.0")
 
 
 class ResumeSerializer(serializers.ModelSerializer):
@@ -106,7 +123,6 @@ class ResumeCreateSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         request = self.context.get("request")
         uploaded_file = validated_data["file"]
-        size = file_size_in_kbs(uploaded_file.size)
         return Resume.objects.create(
             student=request.user.student_profile,
             size=file_size_in_kbs(uploaded_file.size),

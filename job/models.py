@@ -7,6 +7,7 @@ from job.helpers import file_size_in_kbs
 from decimal import Decimal
 from student.models import Student
 import os
+from configs.helpers import get_resume_config
 
 # Create your models here.
 class Job(models.Model):
@@ -33,6 +34,8 @@ class Resume(models.Model):
 
     def clean(self):
         super().clean()
+        resume_conf = get_resume_config()
+        max_resumes = resume_conf.max_number_of_resumes
         if self.file is None:
             raise ValidationError({
                 'file': "You have to upload a file."
@@ -47,9 +50,9 @@ class Resume(models.Model):
                 # 2. Inside the lock, safe to count accurately
                 existing_count = Resume.objects.filter(student=student_locked).count()
 
-                if existing_count >= 10:
+                if existing_count >= max_resumes: # Resume count
                     raise ValidationError({
-                        'file': "You cannot upload more than 10 resumes."
+                        'file': f"You cannot upload more than {max_resumes} resumes."
                     })
 
             if file_size_in_kbs(self.file.size) > Decimal('20.00'):
@@ -63,13 +66,15 @@ class Resume(models.Model):
                 })
 
     def save(self, *args, **kwargs):
-        if Resume.objects.filter(student=self.student).count() < 10:
+        resume_conf = get_resume_config()
+        max_resumes = resume_conf.max_number_of_resumes
+        if Resume.objects.filter(student=self.student).count() < max_resumes: # resume count
             self.size = file_size_in_kbs(self.file.size)
             self.file_name = self.file.name
             self.full_clean()
             return super().save(*args, **kwargs)
         else:
-            raise Exception("Students cannot have more than 10 resumes")
+            raise Exception(f"Students cannot have more than {max_resumes} resumes")
     
     def delete(self, *args, **kwargs):
         if self.file and os.path.isfile(self.file.path):

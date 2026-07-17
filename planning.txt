@@ -1,41 +1,10 @@
-# Placement Portal Enterprise history
-PB -> Placement Portal Backend
-
-## Ticket PB-0001
-### Implement Authentication advancement
-Aim: To implement Email/Password JWT HTTP-only
-
-
-## Ticket PB-0002
-### Implement User management admin
-Aim:
-1. Add Bulk user creation/updation/deletion/export
-2. Email notification on account creation
-
-## Ticket PB-0003
-### Implement Forgot Password
-Forgot Password, 2FA
-
-## Ticket PB-0004
-### Implement Notification system, primarily with Emails
-
-
-## Ticket PB-0005
-### Implement base of the Placement Portal
-1. Here, company user will create job posts
-2. Student of that course will see the job post
-3. Student will apply to job post
-4. Company will see the application
-5. Student Resume information in DB
-
-
-Things to be implemented at Student side:
-1. Application Listing - done
-2. Application Description - done
-3. Resume mgmt (restrict number of resume uploaded by the student, and size, and CRUD) - add config for resume - working, but once application created, we cannot remove the resume from the system, need to fix this part, because it's foreign key to application.-  on delete set NULL
-4. Job and Application page filters
-5. Profile
-
+- application page created with pdf upload
+- set null for resume delete
+- profile information
+- extract information from resume -> see the scenarios
+- resume parsing at upload stage, not on every application creation
+- ATS friendly resume
+- limit number of resumes config, with redis caching
 
 
 resume upload and parsing scenarios:-
@@ -57,5 +26,3 @@ Hide the resume, until it is not completely processed.
 10. student uploaded resume -> resume parsing -> applied for job -> student deactivated itself -> not allowed
 11. Student uploaded resume, resume contains only photos -> resume parsing not detects any text
 
-17 July 2026:-
-1. For MVP, keep things as it is, just add config to increase the limit of resumes.

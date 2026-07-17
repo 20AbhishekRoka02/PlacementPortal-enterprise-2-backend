@@ -7,3 +7,4 @@ class ResumeConfig(models.Model):
     max_resume_size = models.DecimalField(max_digits=6, decimal_places=2, default=20.00, validators=[
         MinValueValidator(Decimal('0.00'))
     ])
+    max_number_of_resumes = models.PositiveIntegerField(default=10)

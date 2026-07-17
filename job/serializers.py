@@ -106,7 +106,7 @@ class ResumeListSerializer(serializers.ModelSerializer):
 class ResumeCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Resume
-        fields = ["size", "file_name", "file"]
+        fields = ["id", "size", "file_name", "file"]
     
     def validate_file(self, file):
         if file.size > 20 * 1024:
@@ -116,7 +116,7 @@ class ResumeCreateSerializer(serializers.ModelSerializer):
 
         if not file.name.lower().endswith(".pdf"):
             raise serializers.ValidationError(
-                "Only PDF resumes are allowed.s"
+                "Only PDF resumes are allowed."
             )
         return file
 

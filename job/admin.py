@@ -1,6 +1,7 @@
 from django.contrib import admin
 from job.models import (
     Job,
+    Application,
     Resume
 )
 # Register your models here.
@@ -13,3 +14,4 @@ class ResumeAdmin(admin.ModelAdmin):
 
 admin.site.register(Job, JobAdmin)
 admin.site.register(Resume, ResumeAdmin)
+admin.site.register(Application)

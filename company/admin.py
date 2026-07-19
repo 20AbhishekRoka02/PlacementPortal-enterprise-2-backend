@@ -36,5 +36,53 @@ class CompanyAdmin(admin.ModelAdmin):
         return redirect(
             f"/admin/company/company/{company.pk}/change/"
         )
+    
+    def get_fieldsets(self, request, obj=None):
+
+        # Superuser
+        if request.user.is_superuser:
+            return (
+                (
+                    "Company Information",
+                    {
+                        "fields": (
+                            "user",
+                            "name",
+                            "website"
+                        )
+                    },
+                ),
+                (
+                    "HR Information",
+                    {
+                        "fields": (
+                            "hr_email",
+                            "hr_phone_number",
+                        )
+                    },
+                ),
+            )
+
+        # Company user
+        return (
+            (
+                "My Profile",
+                {
+                    "fields": (
+                        "name",
+                        "website",
+                    )
+                },
+            ),
+            (
+                "Contact Information",
+                {
+                    "fields": (
+                        "hr_email",
+                        "hr_phone_number",
+                    )
+                },
+            ),
+        )
 
 admin.site.register(Company, CompanyAdmin)

@@ -28,7 +28,7 @@ class Resume(models.Model):
             MaxValueValidator(Decimal('20.00')) # maximum allowed value
         ])
     file_name = models.TextField(blank=True, null=True, default="")
-    file = models.FileField(upload_to="media/resumes", validators=[FileExtensionValidator(allowed_extensions=["pdf"])])
+    file = models.FileField(upload_to="resumes/", validators=[FileExtensionValidator(allowed_extensions=["pdf"])])
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

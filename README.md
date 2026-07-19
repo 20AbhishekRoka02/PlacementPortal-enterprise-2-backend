@@ -34,7 +34,7 @@ Things to be implemented at Student side:
 2. Application Description - done
 3. Resume mgmt (restrict number of resume uploaded by the student, and size, and CRUD) - add config for resume - working, but once application created, we cannot remove the resume from the system, need to fix this part, because it's foreign key to application.-  on delete set NULL
 4. Job and Application page filters
-5. Profile
+5. Profile - Done
 
 
 

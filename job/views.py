@@ -157,4 +157,3 @@ class ResumeViewSet(ModelViewSet):
 
         resume.delete()
         return Response({"data": "Resume deleted successfully!"}, status=status.HTTP_200_OK)
-    

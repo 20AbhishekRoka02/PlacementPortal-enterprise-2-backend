@@ -1,4 +1,4 @@
-- application page created with pdf upload
+- application page created with pdf upload - Done
 - set null for resume delete
 - profile information
 - extract information from resume -> see the scenarios
@@ -25,4 +25,3 @@ Hide the resume, until it is not completely processed.
 9. student uploaded resume -> resume parsing -> applied for job -> company deactivated itself -> not allowed
 10. student uploaded resume -> resume parsing -> applied for job -> student deactivated itself -> not allowed
 11. Student uploaded resume, resume contains only photos -> resume parsing not detects any text
-

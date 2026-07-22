@@ -39,3 +39,5 @@ CORS_ALLOWED_ORIGINS = [
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:3000",
 ]
+
+FRONTEND_URL = os.environ.get('DEV_FRONTEND_URL')

@@ -59,3 +59,21 @@ Hide the resume, until it is not completely processed.
 
 17 July 2026:-
 1. For MVP, keep things as it is, just add config to increase the limit of resumes.
+
+
+
+22 July, 2026:-
+Phase 2: Make it real
+- application page created with pdf upload - Done
+- set null for resume delete
+- profile information
+- extract information from resume -> see the scenarios
+- resume parsing at upload stage, not on every application creation
+- ATS friendly resume
+- limit number of resumes config, with redis caching
+- Forgot Password flow
+- Email notifications
+- tasks management
+- server caching with redis
+- Bulk Student creation
+- AWS deployment

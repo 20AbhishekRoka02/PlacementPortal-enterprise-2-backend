@@ -77,3 +77,15 @@ Phase 2: Make it real
 - server caching with redis
 - Bulk Student creation
 - AWS deployment
+
+pb-0005 -> MVP is completed!
+pb-0006 -> Advancement in services
+
+Here, we have to add all enterprise containers to make task faster and reliable. Following are the containers:-
+1. Celery
+2. RabbitMQ
+3. Redis
+4. Flower
+5. Beat (optional)
+
+and, implement email as a celery task

@@ -7,7 +7,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from users.email import send_password_reset_email
+from services.email.tasks import send_password_reset_email
 from users.models import User
 from users.serializers import (
     PasswordResetSerializer,
@@ -32,7 +32,7 @@ class PasswordResetAPIView(APIView):
 
         # Prevent email enumeration.
         if user:
-            send_password_reset_email(user)
+            send_password_reset_email.delay(user.pk)
 
         return Response(
             {

@@ -220,3 +220,44 @@ EMAIL_HOST_USER = os.environ.get("EMAIL")
 EMAIL_HOST_PASSWORD = os.environ.get("APP_PASSWORD")
 
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+
+CELERY_BROKER_URL = os.environ.get(
+    "CELERY_BROKER_URL"
+)
+
+CELERY_RESULT_BACKEND = os.environ.get(
+    "CELERY_RESULT_BACKEND"
+)
+
+CACHES = {
+    "default": {
+        "BACKEND":
+            "django_redis.cache.RedisCache",
+
+        "LOCATION":
+            os.environ.get("CACHE_URL"),
+
+        "OPTIONS": {
+            "CLIENT_CLASS":
+                "django_redis.client.DefaultClient",
+        },
+    }
+}
+
+CELERY_IMPORTS = (
+    "services.email.tasks",
+    "services.resume_parser.tasks",
+    "services.notifications.tasks",
+)
+
+CELERY_TASK_ROUTES = {
+    "services.email.tasks.*": {
+        "queue": "email_queue",
+    },
+    "services.resume_parser.tasks.*": {
+        "queue": "resume_queue",
+    },
+    "services.notifications.tasks.*": {
+        "queue": "notification_queue",
+    },
+}

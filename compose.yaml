@@ -10,6 +10,8 @@ services:
     depends_on:
       - db
       - adminer
+      - rabbitmq
+      - redis
     working_dir: /app
     command: bash -c "python3 manage.py runserver 0.0.0.0:8000"
     # command: bash -c "gunicorn backend.wsgi:application --bind 0.0.0.0:8000"
@@ -29,5 +31,52 @@ services:
       - db
     ports:
       - "8080:8080"
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: placement_portal
+      RABBITMQ_DEFAULT_PASS: super_secure_password
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  celery_worker:
+    build: .
+    # command: celery -A placement_portal_enterprise_2_backend worker -l info
+    command: celery -A placement_portal_enterprise_2_backend worker -Q email_queue,resume_queue,notification_queue -E -l info
+    volumes:
+      - .:/app
+    working_dir: /app
+    depends_on:
+      - rabbitmq
+      - redis
+
+  celery_beat:
+    build: .
+    command: celery -A placement_portal_enterprise_2_backend beat -l info
+    volumes:
+      - .:/app
+    working_dir: /app
+    depends_on:
+      - rabbitmq
+      - redis
+
+  flower:
+    build: .
+    command: celery -A placement_portal_enterprise_2_backend flower --port=5555
+    ports:
+      - "5555:5555"
+    volumes:
+      - .:/app
+    working_dir: /app
+    depends_on:
+      - rabbitmq
+      - redis
+
 volumes:
   db_data:

@@ -5,14 +5,16 @@ from django.template.loader import render_to_string
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
 from django.utils.html import strip_tags
+from users.models import User
+from celery import shared_task
 
-
-def send_password_reset_email(user):
+@shared_task
+def send_password_reset_email(user_id):
     """
     Sends a password reset email containing a secure
     password reset link.
     """
-
+    user = User.objects.get(pk=user_id)
     uid = urlsafe_base64_encode(force_bytes(user.pk))
     token = default_token_generator.make_token(user)
 
@@ -55,3 +57,8 @@ def send_password_reset_email(user):
     except Exception as e:
         print("subject: ", subject)
         print("plain_message: ", plain_message)
+
+@shared_task
+def hello_world():
+    print("Hello from Celery!")
+    return "Task completed"

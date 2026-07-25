@@ -29,6 +29,21 @@ Forgot Password, 2FA
 5. Student Resume information in DB
 
 
+## PB-0006 -> Advancement in services
+Here, we have to add all enterprise containers to make task faster and reliable. Following are the containers:-
+1. Celery
+2. RabbitMQ
+3. Redis
+4. Flower
+5. Beat (optional)
+
+and, implement email as a celery task
+
+## PB-0007 -> Email Management micro service
+
+## PB-0008 -> Resume Parsing and snapshot
+
+
 Things to be implemented at Student side:
 1. Application Listing - done
 2. Application Description - done

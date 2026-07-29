@@ -1,0 +1,13 @@
+1. discuss the flow - done
+2. major problem - done
+3. what's lagging here -> Not separate task - done
+4. Sync  between frontend and backend (how link is working) - done
+5. Testing scenarios
+6. Separate email management flow - done
+7. Why RabbitMQ between celery and Django - done
+8. Implemented infra - done
+9. removing volumes? Do I have to keep volume of RabbitMQ and celery and redis in production also? - task is not running
+10. Multiline mistake halt the celery - in compose
+11. I have to restart my celery worker container everytime after a change
+12. Few more work, and I'll deploy it to production
+13. Resume parsing task

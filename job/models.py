@@ -29,6 +29,7 @@ class Resume(models.Model):
         ])
     file_name = models.TextField(blank=True, null=True, default="")
     file = models.FileField(upload_to="resumes/", validators=[FileExtensionValidator(allowed_extensions=["pdf"])])
+    detail = RichTextField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -107,6 +108,7 @@ class Application(models.Model):
     student_phone_number = models.CharField(max_length=20, blank=True)
     student_whatsapp_number = models.CharField(max_length=20, blank=True)
     student_email_id = models.EmailField(max_length=254, null=True, blank=True)
+    resume_detail = RichTextField(default="")
 
     def __str__(self):
         return f"{self.student.user.email} applied for {self.job.title}"

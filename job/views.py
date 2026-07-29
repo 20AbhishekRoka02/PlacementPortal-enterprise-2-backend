@@ -13,7 +13,7 @@ from job.serializers import (
     ResumeSerializer,
     ResumeListSerializer,
     ResumeCreateSerializer)
-from job.helpers import file_size_in_kbs
+from services.resume_parser.tasks import basic_resume_parsing_task
 
 # Create your views here.
 class JobViewSet(ModelViewSet):
@@ -138,16 +138,31 @@ class ResumeViewSet(ModelViewSet):
             return Response({
                 "data": e.detail["file"][0]
             }, status=status.HTTP_400_BAD_REQUEST)
-        self.perform_create(serializer)
+        resume = self.perform_create(serializer)
+        basic_resume_parsing_task.delay(resume.pk)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
     
     def perform_create(self, serializer):
-        serializer.save()
+        return serializer.save()
 
     def list(self, request, *args, **kwargs):
         student = request.user.student_profile
         serializer = self.get_serializer_class()
         return Response({"data": serializer(self.queryset.filter(student=student), many=True, context={"request": request}).data})
+    
+    def retrieve(self, request, pk=None):
+        if pk:
+            student = request.user.student_profile
+            try:
+                record = Application.objects.filter(pk=pk, student=student).first()
+                if not record:
+                    raise Exception(f"Record with given pk:{pk} not found")
+            except Exception as e:
+                print("Error: ", e)
+                return Response(status=status.HTTP_404_NOT_FOUND)
+        serializer = self.get_serializer_class()
+        print("serializer is: ", serializer)
+        return Response({"data": serializer(record, context={"request": request}).data})
     
     def destroy(self, request, pk=None):
         student = request.user.student_profile

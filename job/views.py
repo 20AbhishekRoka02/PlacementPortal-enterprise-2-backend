@@ -12,7 +12,8 @@ from job.serializers import (
     ApplicationDetailSerializer,
     ResumeSerializer,
     ResumeListSerializer,
-    ResumeCreateSerializer)
+    ResumeCreateSerializer,
+    ResumeRetrieveSerializer)
 from services.resume_parser.tasks import basic_resume_parsing_task
 
 # Create your views here.
@@ -125,7 +126,7 @@ class ResumeViewSet(ModelViewSet):
         serializer_classes = {
             'create': ResumeCreateSerializer,
             'list': ResumeListSerializer,
-            # 'retrieve': JobDetailSerializer
+            'retrieve': ResumeRetrieveSerializer
         }
         print("self.action: ", self.action)
         return serializer_classes.get(self.action, ResumeSerializer)
@@ -154,7 +155,7 @@ class ResumeViewSet(ModelViewSet):
         if pk:
             student = request.user.student_profile
             try:
-                record = Application.objects.filter(pk=pk, student=student).first()
+                record = Resume.objects.filter(pk=pk, student=student).first()
                 if not record:
                     raise Exception(f"Record with given pk:{pk} not found")
             except Exception as e:

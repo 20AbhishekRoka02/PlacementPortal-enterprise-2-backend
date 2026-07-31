@@ -100,12 +100,14 @@ class ResumeSerializer(serializers.ModelSerializer):
 class ResumeListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Resume
-        fields = "__all__"
+        # fields = "__all__"
+        exclude = ["detail", "student", "size"]
 
-# class ResumeRetrieveSerializer(serializers.ModelSerializer):
-#     class Meta:
-#         model = Resume
-#         fields = ["id", "file_name", ]
+
+class ResumeRetrieveSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Resume
+        fields = "__all__"
 
 
 class ResumeCreateSerializer(serializers.ModelSerializer):

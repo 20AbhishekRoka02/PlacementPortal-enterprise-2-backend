@@ -108,7 +108,7 @@ class Application(models.Model):
     student_phone_number = models.CharField(max_length=20, blank=True)
     student_whatsapp_number = models.CharField(max_length=20, blank=True)
     student_email_id = models.EmailField(max_length=254, null=True, blank=True)
-    resume_detail = RichTextField(default="")
+    resume_detail = RichTextField(null=True, blank=True)
 
     def __str__(self):
         return f"{self.student.user.email} applied for {self.job.title}"

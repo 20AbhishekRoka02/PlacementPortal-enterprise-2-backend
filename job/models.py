@@ -130,7 +130,7 @@ class Attribute(models.Model):
         ENUM = "enum", "Enum"
 
     name = models.CharField(max_length=100)
-    slug = models.SlugField(unique=True)
+    slug = models.SlugField(null=True, blank=True)
     data_type = models.CharField(
         max_length=20,
         choices=DataType.choices,

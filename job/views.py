@@ -62,10 +62,12 @@ class ApplicationViewSet(ModelViewSet):
         return serializer_classes.get(self.action, ApplicationListSerializer)
 
     def create(self, request):
-        # return super().create(request)
         student = request.user.student_profile
         job = request.data.get("job", None)
         resume_id = request.data.get("resume_id", None)
+        attributes = request.data.get("attributes", None)
+        print("request.data: ", request.data)
+        print("attributes: ", attributes)
         if not resume_id or not isinstance(resume_id, int):
             return Response({"data": "Given resume_id doesn't exists"}, status=status.HTTP_400_BAD_REQUEST)
         resume = Resume.objects.filter(student=student, pk=resume_id).first()
@@ -84,13 +86,16 @@ class ApplicationViewSet(ModelViewSet):
             "student_email_id": student.user.email
         }
         try:
-            Application.objects.create(
-                student=student,
-                job=job,
-                status=application_status,
-                resume=resume,
-                **application_kwargs,
-            )
+            # application = Application.objects.create(
+            #     student=student,
+            #     job=job,
+            #     status=application_status,
+            #     resume=resume,
+            #     **application_kwargs,
+            # )
+            print("Application created!")
+            # if attribute:
+                
         except Exception as e:
             return Response({"data": f"Error: {e}"}, status=status.HTTP_400_BAD_REQUEST)
         return Response({"data": "Application submitted successfully"})

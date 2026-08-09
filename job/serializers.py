@@ -44,11 +44,29 @@ class JobListSerializer(serializers.ModelSerializer):
             print("applications: ", applications)
             if applications.exists():
                 return applications.first().status
-        return Application.ApplicationStatus.NOT_APPLIED
+        return Application.ApplicationStatus.NOT_APPLIED            
+    
 
 class JobDetailSerializer(JobListSerializer):
+    attributes = serializers.SerializerMethodField(read_only=True, method_name="get_attributes")
+    
     class Meta(JobListSerializer.Meta):
-        fields = JobListSerializer.Meta.fields + ['description']
+        fields = JobListSerializer.Meta.fields + ['description', 'attributes']
+    
+    def get_attributes(self, obj):
+        attributes_list = list()
+        attributes = obj.attributes
+        if attributes.exists():
+            for attribute in attributes.all():
+                attributes_list.append({
+                    "pk": attribute.attribute.pk,
+                    "name": attribute.attribute.name,
+                    "data_type": attribute.attribute.data_type,
+                    "required": attribute.required,
+                    "order": attribute.order
+                })
+            return attributes_list
+        return None
 
 
 class ApplicationListSerializer(serializers.ModelSerializer):

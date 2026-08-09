@@ -104,3 +104,5 @@ Here, we have to add all enterprise containers to make task faster and reliable.
 5. Beat (optional)
 
 and, implement email as a celery task
+
+pb-0009

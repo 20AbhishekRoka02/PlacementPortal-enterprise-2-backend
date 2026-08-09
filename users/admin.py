@@ -31,7 +31,7 @@ class UserAdmin(BaseUserAdmin):
     def save_model(self, request, obj, form, change):
         if not obj.username:
             obj.username = obj.email
-        if obj.role in [UserRole.ADMIN, UserRole.UNIVERSITY, UserRole.COMPANY]:
+        if obj.role in [UserRole.ADMIN, UserRole.UNIVERSITY, UserRole.COMPANY, UserRole.PLACEMENT_OFFICER]:
             if obj.role in [UserRole.ADMIN, UserRole.UNIVERSITY]:
                 obj.is_superuser = True
             obj.is_staff = True
@@ -39,9 +39,13 @@ class UserAdmin(BaseUserAdmin):
         super().save_model(request, obj, form, change)
 
         if obj.role == UserRole.COMPANY:
-            company_group, created = Group.objects.get_or_create(name='Company')
+            company_group, _ = Group.objects.get_or_create(name='Company')
             Company.objects.get_or_create(user=obj)
             obj.groups.add(company_group)
+        
+        elif obj.role == UserRole.PLACEMENT_OFFICER:
+            placement_officer_group, _ = Group.objects.get_or_create(name='Placement_Officer')
+            obj.groups.add(placement_officer_group)
 
         elif obj.role == UserRole.STUDENT:
             Student.objects.get_or_create(user=obj)

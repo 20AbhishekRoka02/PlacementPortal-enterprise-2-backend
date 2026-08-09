@@ -26,5 +26,5 @@ class Batch(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.name:
-            self.name = f"{self.course.name}-{self.start_year}-{self.end_year}"
+            self.name = f"{self.course.name} ({self.start_year}-{self.end_year})"
         super().save(*args, **kwargs)

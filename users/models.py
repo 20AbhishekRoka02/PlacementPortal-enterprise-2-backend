@@ -7,6 +7,7 @@ class UserRole(models.TextChoices):
     UNIVERSITY = "university", "University"
     STUDENT = "student", "Student"
     COMPANY = "company", "Company"
+    PLACEMENT_OFFICER = "placement_officer", "Placement Officer"
 
 class User(AbstractUser):
     email = models.EmailField(unique=True)

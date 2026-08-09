@@ -8,6 +8,7 @@ from decimal import Decimal
 from student.models import Student
 import os
 from configs.helpers import get_resume_config
+from django.utils.text import slugify
 
 # Create your models here.
 class Job(models.Model):
@@ -116,5 +117,83 @@ class Application(models.Model):
             models.UniqueConstraint(
                 fields=['student', 'job'],
                 name='unique_student_job'  # Must be unique in DB
+            )
+        ]
+
+
+# Implementing EAV
+class Attribute(models.Model):
+    class DataType(models.TextChoices):
+        TEXT = "text", "Text"
+        INTEGER = "integer", "Integer"
+        DECIMAL = "decimal", "Decimal"
+        BOOLEAN = "boolean", "Boolean"
+        DATE = "date", "Date"
+        ENUM = "enum", "Enum"
+
+    name = models.CharField(max_length=100)
+    slug = models.SlugField(unique=True)
+    data_type = models.CharField(
+        max_length=20,
+        choices=DataType.choices,
+    )
+
+    def __str__(self):
+        return self.name
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = slugify(self.name)
+
+        super().save(*args, **kwargs)
+
+
+class JobAttribute(models.Model):
+    job = models.ForeignKey(
+        Job,
+        on_delete=models.CASCADE,
+        related_name="attributes"
+    )
+    attribute = models.ForeignKey(
+        Attribute,
+        on_delete=models.PROTECT,
+        related_name="jobs"
+    )
+    required = models.BooleanField(default=False)
+    visible_to_company = models.BooleanField(default=True)
+    filterable = models.BooleanField(default=True)
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["order"]
+        unique_together = ("job", "attribute")
+
+
+class ApplicationAttributeValue(models.Model):
+    application = models.ForeignKey(
+        Application,
+        on_delete=models.CASCADE,
+        related_name="attributes"
+    )
+    attribute_name = models.CharField(max_length=100)
+    attribute_slug = models.SlugField()
+    data_type = models.CharField(max_length=20)
+    required = models.BooleanField(default=False)
+    value = models.TextField()
+
+    class Meta:
+        ordering = ["id"]
+
+
+class StudentAttributeValue(models.Model):
+    student = models.ForeignKey(Student, on_delete=models.CASCADE)
+    attribute = models.ForeignKey(Attribute, on_delete=models.CASCADE)
+    value = models.JSONField()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["student", "attribute"],
+                name="unique_student_attribute",
             )
         ]

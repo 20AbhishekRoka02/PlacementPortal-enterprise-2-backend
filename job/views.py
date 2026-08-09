@@ -81,8 +81,6 @@ class ApplicationViewSet(ModelViewSet):
             "job_description": job.description,
             "job_location": job.location,
             "job_salary": job.salary,
-            "student_phone_number": student.phone_number,
-            "student_whatsapp_number": student.whatsapp_number,
             "student_email_id": student.user.email
         }
         try:

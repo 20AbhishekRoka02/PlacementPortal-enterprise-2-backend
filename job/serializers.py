@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from job.models import Job, Application, Resume
+from job.models import Job, Application, Resume, StudentAttributeValue, ApplicationAttributeValue
 from job.helpers import file_size_in_kbs
 from decimal import Decimal
 class JobSerializer(serializers.ModelSerializer):
@@ -54,16 +54,22 @@ class JobDetailSerializer(JobListSerializer):
         fields = JobListSerializer.Meta.fields + ['description', 'attributes']
     
     def get_attributes(self, obj):
+        student = self.context.get("student")
         attributes_list = list()
         attributes = obj.attributes
         if attributes.exists():
-            for attribute in attributes.all():
+            for job_attribute in attributes.all():
+                sav = StudentAttributeValue.objects.filter(student=student, attribute=job_attribute.attribute)
+                value = None
+                if sav.exists():
+                    value = sav.first().value.get('value')
                 attributes_list.append({
-                    "pk": attribute.attribute.pk,
-                    "name": attribute.attribute.name,
-                    "data_type": attribute.attribute.data_type,
-                    "required": attribute.required,
-                    "order": attribute.order
+                    "pk": job_attribute.attribute.pk,
+                    "name": job_attribute.attribute.name,
+                    "data_type": job_attribute.attribute.data_type,
+                    "required": job_attribute.required,
+                    "order": job_attribute.order,
+                    "value": value
                 })
             return attributes_list
         return None
@@ -90,11 +96,12 @@ class ApplicationListSerializer(serializers.ModelSerializer):
 class ApplicationDetailSerializer(ApplicationListSerializer):
     resume_file_name = serializers.SerializerMethodField(read_only=True, method_name="get_resume_file_name")
     resume_file_size = serializers.SerializerMethodField(read_only=True, method_name="get_resume_file_size")
+    attributes = serializers.SerializerMethodField(read_only=True, method_name="get_attributes")
     
     class Meta(ApplicationListSerializer.Meta):
         fields = ApplicationListSerializer.Meta.fields + [
-            'job_title', 'job_description', 'job_location', 'job_salary', 'student_phone_number', 
-            'student_whatsapp_number', 'student_email_id', 'resume_file_name', 'resume_file_size']
+            'job_title', 'job_description', 'job_location', 'job_salary', 'student_email_id',
+            'resume_file_name', 'resume_file_size', 'attributes']
     
     def get_resume_file_name(self, obj):
         resume = obj.resume
@@ -107,6 +114,20 @@ class ApplicationDetailSerializer(ApplicationListSerializer):
         if resume:
             return resume.size
         return Decimal("0.0")
+
+    def get_attributes(self, obj):
+        attributes_list = list()
+        attributes = obj.attributes
+        if attributes.exists():
+            for application_attribute in attributes.all():
+                attributes_list.append({
+                    "pk": application_attribute.pk,
+                    "name": application_attribute.attribute_name,
+                    "data_type": application_attribute.data_type,
+                    "value": application_attribute.value
+                })
+            return attributes_list
+        return None
 
 
 class ResumeSerializer(serializers.ModelSerializer):

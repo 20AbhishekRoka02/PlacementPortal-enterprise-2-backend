@@ -1,9 +1,10 @@
+from django.db import transaction
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import ValidationError
 from rest_framework import status
-from job.models import Job, Application, Resume
+from job.models import Job, Application, Resume, Attribute, ApplicationAttributeValue, StudentAttributeValue
 from job.serializers import (
     JobSerializer,
     JobListSerializer,
@@ -46,7 +47,7 @@ class JobViewSet(ModelViewSet):
                 return Response(status=status.HTTP_404_NOT_FOUND)
         serializer = self.get_serializer_class()
         print("serializer is: ", serializer)
-        return Response({"data": serializer(record, context={"request": request}).data})
+        return Response({"data": serializer(record, context={"request": request, "student": user.student_profile}).data})
 
 
 class ApplicationViewSet(ModelViewSet):
@@ -65,7 +66,7 @@ class ApplicationViewSet(ModelViewSet):
         student = request.user.student_profile
         job = request.data.get("job", None)
         resume_id = request.data.get("resume_id", None)
-        attributes = request.data.get("attributes", None)
+        attributes = request.data.get("answers", None)
         print("request.data: ", request.data)
         print("attributes: ", attributes)
         if not resume_id or not isinstance(resume_id, int):
@@ -86,16 +87,36 @@ class ApplicationViewSet(ModelViewSet):
             "student_email_id": student.user.email
         }
         try:
-            # application = Application.objects.create(
-            #     student=student,
-            #     job=job,
-            #     status=application_status,
-            #     resume=resume,
-            #     **application_kwargs,
-            # )
-            print("Application created!")
-            # if attribute:
-                
+            with transaction.atomic():
+                application = Application.objects.create(
+                    student=student,
+                    job=job,
+                    status=application_status,
+                    resume=resume,
+                    **application_kwargs,
+                )
+                print("Application created!")
+                if attributes:
+                    for key, value in attributes.items():
+                        key = int(key)
+                        attribute = Attribute.objects.get(pk=key)
+                        required = job.attributes.get(attribute=attribute).required
+                        ApplicationAttributeValue.objects.create(
+                            application=application,
+                            attribute_name=attribute.name,
+                            attribute_slug=attribute.slug,
+                            data_type=attribute.data_type,
+                            required=required,
+                            value=str(value))
+                        StudentAttributeValue.objects.update_or_create(
+                            student=student,
+                            attribute=attribute,
+                            defaults={
+                                "value": {
+                                    "value": value
+                                    }
+                            }
+                        )
         except Exception as e:
             return Response({"data": f"Error: {e}"}, status=status.HTTP_400_BAD_REQUEST)
         return Response({"data": "Application submitted successfully"})

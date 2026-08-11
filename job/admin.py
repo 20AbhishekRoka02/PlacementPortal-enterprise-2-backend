@@ -55,6 +55,7 @@ class ApplicationAdmin(admin.ModelAdmin):
     readonly_fields = (
         "view_resume",
     )
+    list_display = ["student__user__first_name", "student__user__last_name", "student_email_id", "job_title", "status", "view_resume"]
     inlines = [ApplicationAttributeInline]
 
     def get_queryset(self, request):
@@ -86,3 +87,4 @@ admin.site.register(Resume, ResumeAdmin)
 admin.site.register(Application, ApplicationAdmin)
 admin.site.register(Attribute, AttributeAdmin)
 admin.site.register(StudentAttributeValue)
+admin.site.register(ApplicationAttributeValue)

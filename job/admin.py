@@ -1,5 +1,7 @@
+from django.urls import reverse
 from django.utils.html import format_html
 from django.contrib import admin
+from django.db.models import Count
 from job.models import (
     Job,
     Application,
@@ -22,7 +24,7 @@ class JobAttributeInline(admin.TabularInline):
     autocomplete_fields = ("attribute",)
 
 class JobAdmin(admin.ModelAdmin):
-    list_display = ('title', 'company__name', 'salary', 'location', 'deadline', 'created_at', 'updated_at')
+    list_display = ('title', 'company__name', 'salary', 'location', 'deadline', "application_count", 'created_at', 'updated_at', "view_applications")
     inlines = [JobAttributeInline]
     def get_queryset(self, request):
         if request.user.role == UserRole.COMPANY:
@@ -30,8 +32,25 @@ class JobAdmin(admin.ModelAdmin):
                 company=request.user.company_profile
             )
             
-        return super().get_queryset(request)
+        queryset = super().get_queryset(request)
+        return queryset.annotate(
+            _application_count=Count("applications")
+        )
+    
+    def application_count(self, obj):
+        return obj._application_count
+    
+    def view_applications(self, obj):
+        url = reverse(
+            "admin:job_application_changelist"
+        )
 
+        url += f"?job__id__exact={obj.pk}"
+
+        return format_html(
+            '<a href="{}">View applications</a>',
+            url,
+        )
 
 class ResumeAdmin(admin.ModelAdmin):
     list_display = ("pk", "student__user__email", "file_name", "size", "file", 'created_at', 'updated_at')

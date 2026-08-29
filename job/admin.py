@@ -1,6 +1,6 @@
 from django.urls import reverse
 from django.utils.html import format_html
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.db.models import Count
 from job.models import (
     Job,
@@ -9,8 +9,10 @@ from job.models import (
     Attribute,
     JobAttribute,
     ApplicationAttributeValue,
-    StudentAttributeValue
+    StudentAttributeValue,
+    ApplicationExport
 )
+from .tasks import generate_application_export
 from users.models import UserRole
 # Register your models here.
 class AttributeAdmin(admin.ModelAdmin):
@@ -25,6 +27,7 @@ class JobAttributeInline(admin.TabularInline):
 
 class JobAdmin(admin.ModelAdmin):
     list_display = ('title', 'company__name', 'salary', 'location', 'deadline', "application_count", 'created_at', 'updated_at', "view_applications")
+    actions = ["export_application_data"]
     inlines = [JobAttributeInline]
     def get_queryset(self, request):
         if request.user.role == UserRole.COMPANY:
@@ -50,6 +53,36 @@ class JobAdmin(admin.ModelAdmin):
         return format_html(
             '<a href="{}">View applications</a>',
             url,
+        )
+
+    # Actions
+    @admin.action(description="Export Application of given Job")
+    def export_application_data(self, request, queryset):
+        # Only one job can be exported at a time.
+        if queryset.count() != 1:
+            self.message_user(
+                request,
+                "Please select exactly one job to export.",
+                level=messages.ERROR,
+            )
+            return
+        job = queryset.first()
+
+        export = ApplicationExport.objects.create(
+            requested_by=request.user,
+            status=ApplicationExport.Status.PENDING,
+        )
+
+        export.jobs.add(job)
+
+        task = generate_application_export.delay(export.pk)
+        print("Task id: ", task.id)
+
+        self.message_user(
+            request,
+            f"Export for '{job.title}' has been queued. "
+            f"You can monitor it from the Exports section.",
+            level=messages.SUCCESS,
         )
 
 class ResumeAdmin(admin.ModelAdmin):
@@ -107,3 +140,4 @@ admin.site.register(Application, ApplicationAdmin)
 admin.site.register(Attribute, AttributeAdmin)
 admin.site.register(StudentAttributeValue)
 admin.site.register(ApplicationAttributeValue)
+admin.site.register(ApplicationExport)

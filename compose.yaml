@@ -48,7 +48,7 @@ services:
   celery_worker:
     build: .
     # command: celery -A placement_portal_enterprise_2_backend worker -l info
-    command: celery -A placement_portal_enterprise_2_backend worker -Q email_queue,resume_queue,notification_queue -E -l info
+    command: celery -A placement_portal_enterprise_2_backend worker -Q email_queue,resume_queue,notification_queue,job_queue -E -l info
     volumes:
       - .:/app
     working_dir: /app

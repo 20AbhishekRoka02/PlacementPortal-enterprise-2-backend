@@ -260,4 +260,7 @@ CELERY_TASK_ROUTES = {
     "services.notifications.tasks.*": {
         "queue": "notification_queue",
     },
+    "job.tasks.*": {
+        "queue": "job_queue",
+    }
 }

@@ -29,7 +29,7 @@ class Resume(models.Model):
             MaxValueValidator(Decimal('20.00')) # maximum allowed value
         ])
     file_name = models.TextField(blank=True, null=True, default="")
-    file = models.FileField(upload_to="resumes/", validators=[FileExtensionValidator(allowed_extensions=["pdf"])])
+    file = models.FileField(upload_to="media/resumes/", validators=[FileExtensionValidator(allowed_extensions=["pdf"])])
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -195,3 +195,40 @@ class StudentAttributeValue(models.Model):
                 name="unique_student_attribute",
             )
         ]
+
+# Application Export Information
+class ApplicationExport(models.Model):
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        PROCESSING = "processing", "Processing"
+        COMPLETED = "completed", "Completed"
+        FAILED = "failed", "Failed"
+
+    requested_by = models.ForeignKey(
+        "users.User",
+        on_delete=models.PROTECT,
+        related_name="application_exports",
+    )
+
+    jobs = models.ManyToManyField(Job)
+
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PENDING,
+    )
+
+    file = models.FileField(
+        upload_to="media/exports/",
+        blank=True,
+        null=True,
+    )
+
+    application_count = models.PositiveIntegerField(default=0)
+    resume_count = models.PositiveIntegerField(default=0)
+
+    error_message = models.TextField(blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)

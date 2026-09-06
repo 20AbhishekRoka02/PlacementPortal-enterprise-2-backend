@@ -127,7 +127,7 @@ class Attribute(models.Model):
         DECIMAL = "decimal", "Decimal"
         BOOLEAN = "boolean", "Boolean"
         DATE = "date", "Date"
-        ENUM = "enum", "Enum"
+        PHONE_NUMBER = "phone_number", "Phone Number"
 
     name = models.CharField(max_length=100)
     slug = models.SlugField(null=True, blank=True)

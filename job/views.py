@@ -8,13 +8,17 @@ from job.models import Job, Application, Resume, Attribute, ApplicationAttribute
 from job.serializers import (
     JobSerializer,
     JobListSerializer,
+    JobAdminListSerializer,
     JobDetailSerializer,
+    JobAdminDetailSerializer,
     ApplicationListSerializer,
     ApplicationDetailSerializer,
     ResumeSerializer,
     ResumeListSerializer,
     ResumeCreateSerializer)
 from job.helpers import file_size_in_kbs
+from users.models import UserRole
+from users.helpers import is_student
 
 # Create your views here.
 class JobViewSet(ModelViewSet):
@@ -24,30 +28,48 @@ class JobViewSet(ModelViewSet):
     def get_serializer_class(self):
         serializer_classes = {
             'list': JobListSerializer,
-            'retrieve': JobDetailSerializer
+            'retrieve': JobDetailSerializer,
+            'list_admin': JobAdminListSerializer,
+            'retrieve_admin': JobAdminDetailSerializer,
         }
         print("self.action: ", self.action)
         return serializer_classes.get(self.action, JobSerializer)
 
     def list(self, request, *args, **kwargs):
         user = request.user
-        jobs = Job.objects.filter(batch=user.student_profile.batch)
+        a_student = is_student(user)
+        if a_student:
+            jobs = Job.objects.filter(batch=user.student_profile.batch)
+        elif a_student == False:
+            jobs = self.queryset
+            self.action = "list_admin"
+        else:
+            jobs = Job.objects.none()
         serializer = self.get_serializer_class()
-        return Response({"data": serializer(self.queryset.filter(batch=user.student_profile.batch), many=True, context={"request": request}).data})
+        return Response({"data": serializer(jobs, many=True, context={"request": request}).data})
 
     def retrieve(self, request, pk=None):
         if pk:
             user = request.user
+            a_student = is_student(user)
             try:
-                record = Job.objects.filter(pk=pk, batch=user.student_profile.batch).first()
-                if not record:
-                    raise Exception(f"Record with given pk:{pk} not found")
+                if a_student:
+                    record = Job.objects.filter(pk=pk, batch=user.student_profile.batch).first()
+                    if not record:
+                        raise Exception(f"Record with given pk:{pk} not found")
+                elif a_student == False:
+                    record = self.queryset.get(pk=pk)
+                    self.action = "retrieve_admin"
             except Exception as e:
                 print("Error: ", e)
                 return Response(status=status.HTTP_404_NOT_FOUND)
         serializer = self.get_serializer_class()
-        print("serializer is: ", serializer)
-        return Response({"data": serializer(record, context={"request": request, "student": user.student_profile}).data})
+        
+        context = {"request": request}
+        if hasattr(user, "student_profile"):
+            context.update({"student": user.student_profile})
+            
+        return Response({"data": serializer(record, context=context).data})
 
 
 class ApplicationViewSet(ModelViewSet):

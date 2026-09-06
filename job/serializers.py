@@ -45,7 +45,34 @@ class JobListSerializer(serializers.ModelSerializer):
             if applications.exists():
                 return applications.first().status
         return Application.ApplicationStatus.NOT_APPLIED            
-    
+
+
+class JobAdminListSerializer(serializers.ModelSerializer):
+    id = serializers.SerializerMethodField(read_only=True, method_name="get_id")
+    company = serializers.SerializerMethodField(read_only=True, method_name="get_company_name")
+    batch = serializers.SerializerMethodField(read_only=True, method_name="get_batch_name")
+    published_on = serializers.SerializerMethodField(read_only=True, method_name="get_published_on")
+
+    class Meta:
+        model = Job
+        fields = ['id', 'company', 'title', 'location', 'salary', 'deadline', 'batch', 'published_on']
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        return context
+
+    def get_id(self, obj):
+        return obj.pk
+
+    def get_company_name(self, obj):
+        return obj.company.name
+
+    def get_batch_name(self, obj):
+        return obj.batch.name
+
+    def get_published_on(self, obj):
+        return obj.created_at
+
 
 class JobDetailSerializer(JobListSerializer):
     attributes = serializers.SerializerMethodField(read_only=True, method_name="get_attributes")
@@ -70,6 +97,29 @@ class JobDetailSerializer(JobListSerializer):
                     "required": job_attribute.required,
                     "order": job_attribute.order,
                     "value": value
+                })
+            return attributes_list
+        return None
+
+
+class JobAdminDetailSerializer(JobAdminListSerializer):
+    attributes = serializers.SerializerMethodField(read_only=True, method_name="get_attributes")
+    applications = serializers.SerializerMethodField(read_only=True, method_name="get_applications")
+    
+    class Meta(JobAdminListSerializer.Meta):
+        fields = JobAdminListSerializer.Meta.fields + ['description', 'attributes']
+    
+    def get_attributes(self, obj):
+        attributes_list = list()
+        attributes = obj.attributes
+        if attributes.exists():
+            for job_attribute in attributes.all():
+                attributes_list.append({
+                    "pk": job_attribute.attribute.pk,
+                    "name": job_attribute.attribute.name,
+                    "data_type": job_attribute.attribute.data_type,
+                    "required": job_attribute.required,
+                    "order": job_attribute.order,
                 })
             return attributes_list
         return None

@@ -3,7 +3,7 @@ from django.utils.encoding import force_str
 from django.utils.http import urlsafe_base64_decode
 
 from rest_framework import status
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -97,3 +97,11 @@ class PasswordResetConfirmAPIView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+
+class UserProfileAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        return Response(data={"id": user.pk, "email": user.email, "role": user.role},status=status.HTTP_200_OK)

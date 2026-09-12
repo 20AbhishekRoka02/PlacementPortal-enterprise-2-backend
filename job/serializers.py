@@ -51,11 +51,12 @@ class JobAdminListSerializer(serializers.ModelSerializer):
     id = serializers.SerializerMethodField(read_only=True, method_name="get_id")
     company = serializers.SerializerMethodField(read_only=True, method_name="get_company_name")
     batch = serializers.SerializerMethodField(read_only=True, method_name="get_batch_name")
+    applicants_count = serializers.SerializerMethodField(read_only=True, method_name="get_applicants_count")
     published_on = serializers.SerializerMethodField(read_only=True, method_name="get_published_on")
 
     class Meta:
         model = Job
-        fields = ['id', 'company', 'title', 'location', 'salary', 'deadline', 'batch', 'published_on']
+        fields = ['id', 'company', 'title', 'location', 'salary', 'deadline', 'batch', 'applicants_count', 'published_on']
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -72,6 +73,9 @@ class JobAdminListSerializer(serializers.ModelSerializer):
 
     def get_published_on(self, obj):
         return obj.created_at
+    
+    def get_applicants_count(self, obj):
+        return obj.applications.count()
 
 
 class JobDetailSerializer(JobListSerializer):
@@ -101,13 +105,44 @@ class JobDetailSerializer(JobListSerializer):
             return attributes_list
         return None
 
+class ApplicationListSerializer(serializers.ModelSerializer):
+    id = serializers.SerializerMethodField(read_only=True, method_name="get_application_id")
+    title = serializers.SerializerMethodField(read_only=True, method_name="get_job_title")
+    company = serializers.SerializerMethodField(read_only=True, method_name="get_company_name")
+    class Meta:
+        model = Application
+        fields = ["id", "title", "company", "status", "applied_at"]
+
+    def get_application_id(self, obj):
+        return obj.pk
+
+    def get_job_title(self, obj):
+        return obj.job.title
+
+    def get_company_name(self, obj):
+        return obj.job.company.name
+
+
+class ApplicationAdminListSerializer(serializers.ModelSerializer):
+    from student.serializers import StudentProfileSerializer
+    id = serializers.SerializerMethodField(read_only=True, method_name="get_application_id")
+    student = StudentProfileSerializer(read_only=True)
+    
+    class Meta:
+        model = Application
+        fields = ["id", "student", "status", "applied_at"]
+
+    def get_application_id(self, obj):
+        return obj.pk
+
 
 class JobAdminDetailSerializer(JobAdminListSerializer):
     attributes = serializers.SerializerMethodField(read_only=True, method_name="get_attributes")
-    applications = serializers.SerializerMethodField(read_only=True, method_name="get_applications")
+    # applications = serializers.SerializerMethodField(read_only=True, method_name="get_applications")
+    applications = ApplicationAdminListSerializer(many=True, read_only=True)
     
     class Meta(JobAdminListSerializer.Meta):
-        fields = JobAdminListSerializer.Meta.fields + ['description', 'attributes']
+        fields = JobAdminListSerializer.Meta.fields + ['description', 'attributes', 'applications']
     
     def get_attributes(self, obj):
         attributes_list = list()
@@ -125,22 +160,6 @@ class JobAdminDetailSerializer(JobAdminListSerializer):
         return None
 
 
-class ApplicationListSerializer(serializers.ModelSerializer):
-    id = serializers.SerializerMethodField(read_only=True, method_name="get_application_id")
-    title = serializers.SerializerMethodField(read_only=True, method_name="get_job_title")
-    company = serializers.SerializerMethodField(read_only=True, method_name="get_company_name")
-    class Meta:
-        model = Application
-        fields = ["id", "title", "company", "status", "applied_at"]
-
-    def get_application_id(self, obj):
-        return obj.pk
-
-    def get_job_title(self, obj):
-        return obj.job.title
-
-    def get_company_name(self, obj):
-        return obj.job.company.name
 
 
 class ApplicationDetailSerializer(ApplicationListSerializer):

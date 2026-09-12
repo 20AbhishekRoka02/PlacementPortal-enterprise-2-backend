@@ -104,4 +104,4 @@ class UserProfileAPIView(APIView):
 
     def get(self, request):
         user = request.user
-        return Response(data={"id": user.pk, "email": user.email, "role": user.role},status=status.HTTP_200_OK)
+        return Response(data={"data": {"id": user.pk, "email": user.email, "role": user.role, "is_staff": user.is_staff}},status=status.HTTP_200_OK)

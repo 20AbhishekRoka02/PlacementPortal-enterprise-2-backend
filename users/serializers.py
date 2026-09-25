@@ -11,6 +11,7 @@ class CustomUserDetailsSerializer(UserDetailsSerializer):
             "email",
             "full_name",
             "role",
+            "is_staff"
         )
 
     def get_full_name(self, obj):

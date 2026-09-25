@@ -12,6 +12,7 @@ from users.models import User
 from users.serializers import (
     PasswordResetSerializer,
     PasswordResetConfirmSerializer,
+    CustomUserDetailsSerializer,
 )
 
 
@@ -101,7 +102,9 @@ class PasswordResetConfirmAPIView(APIView):
 
 class UserProfileAPIView(APIView):
     permission_classes = [IsAuthenticated]
+    serializer_class = CustomUserDetailsSerializer
 
     def get(self, request):
         user = request.user
-        return Response(data={"data": {"id": user.pk, "email": user.email, "role": user.role, "is_staff": user.is_staff}},status=status.HTTP_200_OK)
+        serializer = self.serializer_class(user)
+        return Response(data=serializer.data,status=status.HTTP_200_OK)

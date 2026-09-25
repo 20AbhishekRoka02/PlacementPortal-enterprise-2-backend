@@ -22,7 +22,7 @@ class StudentProfileViewSet(viewsets.ViewSet):
             "batch": batch_name,
             "role": user.role
         }
-        return Response({"data": data}, status=status.HTTP_200_OK)
+        return Response(data, status=status.HTTP_200_OK)
     
     @action(detail=False, methods=['PUT'], permission_classes=[IsAuthenticated], url_path="profile-update")
     def profile_update(self, request):

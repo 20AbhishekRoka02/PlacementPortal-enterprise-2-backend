@@ -13,6 +13,7 @@ from job.serializers import (
     JobAdminDetailSerializer,
     ApplicationListSerializer,
     ApplicationDetailSerializer,
+    ApplicationAdminListSerializer,
     ResumeSerializer,
     ResumeListSerializer,
     ResumeCreateSerializer)
@@ -79,7 +80,8 @@ class ApplicationViewSet(ModelViewSet):
     def get_serializer_class(self):
         serializer_classes = {
             'list': ApplicationListSerializer,
-            'retrieve': ApplicationDetailSerializer
+            'retrieve': ApplicationDetailSerializer,
+            'list_admin': ApplicationAdminListSerializer,
         }
         print("self.action: ", self.action)
         return serializer_classes.get(self.action, ApplicationListSerializer)
@@ -145,8 +147,14 @@ class ApplicationViewSet(ModelViewSet):
 
     def list(self, request, *args, **kwargs):
         user = request.user
+        a_student = is_student(user)
+        if a_student == False:
+            self.action = 'list_admin'
+            queryset = self.queryset
+        else:
+            queryset = self.queryset.filter(student=user.student_profile)
         serializer = self.get_serializer_class()
-        return Response({"data": serializer(self.queryset.filter(student=user.student_profile), many=True, context={"request": request}).data})
+        return Response({"data": serializer(queryset, many=True, context={"request": request}).data})
 
     def retrieve(self, request, pk=None):
         if pk:

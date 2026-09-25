@@ -2,6 +2,9 @@ from rest_framework import serializers
 from job.models import Job, Application, Resume, StudentAttributeValue, ApplicationAttributeValue
 from job.helpers import file_size_in_kbs
 from decimal import Decimal
+from company.serializers import CompanySerializer
+
+
 class JobSerializer(serializers.ModelSerializer):
     class Meta:
         model = Job
@@ -139,6 +142,7 @@ class ApplicationAdminListSerializer(serializers.ModelSerializer):
 class JobAdminDetailSerializer(JobAdminListSerializer):
     attributes = serializers.SerializerMethodField(read_only=True, method_name="get_attributes")
     # applications = serializers.SerializerMethodField(read_only=True, method_name="get_applications")
+    company = CompanySerializer(read_only=True)
     applications = ApplicationAdminListSerializer(many=True, read_only=True)
     
     class Meta(JobAdminListSerializer.Meta):

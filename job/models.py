@@ -83,20 +83,43 @@ class Resume(models.Model):
         super().delete(*args, **kwargs)
 
 
-class Application(models.Model):
-    class ApplicationStatus(models.TextChoices):
-        NOT_APPLIED = "Not Applied", ("Not Applied")
-        APPLIED = "Applied", ("Applied")
-        REJECTED = "Rejected", ("Rejected")
-        PLACED = "Placed", ("Placed")
+class ApplicationStatus(models.Model):
+    name = models.CharField(max_length=255, unique=True)
+    code = models.SlugField(max_length=255, unique=True, editable=False)
 
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+    def save(self, *args, **kwargs):
+        if not self.code:
+            base_code = slugify(self.name) or "status"
+            self.code = base_code[:255]
+            suffix = 2
+            while ApplicationStatus.objects.filter(code=self.code).exclude(pk=self.pk).exists():
+                suffix_text = f"-{suffix}"
+                self.code = f"{base_code[:255 - len(suffix_text)]}{suffix_text}"
+                suffix += 1
+        return super().save(*args, **kwargs)
+
+
+def default_application_status_id():
+    return ApplicationStatus.objects.only("pk").get(code="applied").pk
+
+
+class Application(models.Model):
     student = models.ForeignKey('student.Student', on_delete=models.CASCADE, related_name='applications')
     job = models.ForeignKey(Job, on_delete=models.CASCADE, related_name='applications')
     resume = models.ForeignKey(Resume, on_delete=models.CASCADE, related_name='applications', null=True, blank=True)
-    status = models.CharField(
-        max_length=255,
-        choices=ApplicationStatus.choices,
-        default=ApplicationStatus.APPLIED,
+    status = models.ForeignKey(
+        ApplicationStatus,
+        on_delete=models.PROTECT,
+        related_name="applications",
+        null=True,
+        blank=True,
+        default=default_application_status_id,
     )
     applied_at = models.DateTimeField(auto_now_add=True)
     status_updated_at = models.DateTimeField(auto_now=True)

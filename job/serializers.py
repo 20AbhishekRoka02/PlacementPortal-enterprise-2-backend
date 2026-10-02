@@ -1,8 +1,44 @@
 from rest_framework import serializers
-from job.models import Job, Application, Resume, StudentAttributeValue, ApplicationAttributeValue
+from job.models import (
+    Job,
+    Application,
+    ApplicationStatus,
+    Resume,
+    StudentAttributeValue,
+    ApplicationAttributeValue,
+)
 from job.helpers import file_size_in_kbs
 from decimal import Decimal
 from company.serializers import CompanySerializer
+
+
+class ApplicationStatusSerializer(serializers.ModelSerializer):
+    code = serializers.CharField(read_only=True)
+
+    class Meta:
+        model = ApplicationStatus
+        fields = ["id", "code", "name"]
+
+
+class ApplicationStatusField(serializers.RelatedField):
+    default_error_messages = {
+        "does_not_exist": "Invalid application status.",
+    }
+
+    def get_attribute(self, instance):
+        status_value = super().get_attribute(instance)
+        return status_value if status_value is not None else "Applied"
+
+    def to_internal_value(self, data):
+        try:
+            if isinstance(data, int) or (isinstance(data, str) and data.isdigit()):
+                return self.get_queryset().get(pk=int(data))
+            return self.get_queryset().get(name=data)
+        except (TypeError, ValueError, ApplicationStatus.DoesNotExist):
+            self.fail("does_not_exist")
+
+    def to_representation(self, value):
+        return value if isinstance(value, str) else value.name
 
 
 class JobSerializer(serializers.ModelSerializer):
@@ -46,8 +82,9 @@ class JobListSerializer(serializers.ModelSerializer):
             )
             print("applications: ", applications)
             if applications.exists():
-                return applications.first().status
-        return Application.ApplicationStatus.NOT_APPLIED            
+                application_status = applications.first().status
+                return application_status.name if application_status else "Applied"
+        return "Not Applied"
 
 
 class JobAdminListSerializer(serializers.ModelSerializer):
@@ -112,6 +149,11 @@ class ApplicationListSerializer(serializers.ModelSerializer):
     id = serializers.SerializerMethodField(read_only=True, method_name="get_application_id")
     title = serializers.SerializerMethodField(read_only=True, method_name="get_job_title")
     company = serializers.SerializerMethodField(read_only=True, method_name="get_company_name")
+    status = ApplicationStatusField(
+        queryset=ApplicationStatus.objects.all(),
+        required=False,
+        allow_null=True,
+    )
     class Meta:
         model = Application
         fields = ["id", "title", "company", "status", "applied_at"]
@@ -130,6 +172,11 @@ class ApplicationAdminListSerializer(serializers.ModelSerializer):
     from student.serializers import StudentProfileSerializer
     id = serializers.SerializerMethodField(read_only=True, method_name="get_application_id")
     student = StudentProfileSerializer(read_only=True)
+    status = ApplicationStatusField(
+        queryset=ApplicationStatus.objects.all(),
+        required=False,
+        allow_null=True,
+    )
     
     class Meta:
         model = Application

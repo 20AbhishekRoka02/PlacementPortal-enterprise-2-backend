@@ -5,6 +5,7 @@ from django.db.models import Count
 from job.models import (
     Job,
     Application,
+    ApplicationStatus,
     Resume,
     Attribute,
     JobAttribute,
@@ -17,6 +18,12 @@ from users.models import UserRole
 # Register your models here.
 class AttributeAdmin(admin.ModelAdmin):
     list_display = ("name", "data_type")
+    search_fields = ("name",)
+
+
+class ApplicationStatusAdmin(admin.ModelAdmin):
+    list_display = ("name", "code")
+    readonly_fields = ("code",)
     search_fields = ("name",)
 
 
@@ -137,6 +144,7 @@ class StudentAttributeValueAdmin(admin.ModelAdmin):
 admin.site.register(Job, JobAdmin)
 admin.site.register(Resume, ResumeAdmin)
 admin.site.register(Application, ApplicationAdmin)
+admin.site.register(ApplicationStatus, ApplicationStatusAdmin)
 admin.site.register(Attribute, AttributeAdmin)
 admin.site.register(StudentAttributeValue)
 admin.site.register(ApplicationAttributeValue)

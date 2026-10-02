@@ -1,8 +1,9 @@
 from users.models import UserRole
 
 def is_student(user):
+    print("user.role: ", user.role)
     if user.role:
         if user.role != UserRole.STUDENT:
-            return False
+            return "staff"
         else:
-            return True
+            return "student"

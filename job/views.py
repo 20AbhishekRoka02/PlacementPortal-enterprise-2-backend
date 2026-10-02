@@ -1,10 +1,19 @@
 from django.db import transaction
-from rest_framework.viewsets import ModelViewSet
+from rest_framework.viewsets import GenericViewSet, ModelViewSet
+from rest_framework import mixins
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import ValidationError
 from rest_framework import status
-from job.models import Job, Application, Resume, Attribute, ApplicationAttributeValue, StudentAttributeValue
+from job.models import (
+    Job,
+    Application,
+    ApplicationStatus,
+    Resume,
+    Attribute,
+    ApplicationAttributeValue,
+    StudentAttributeValue,
+)
 from job.serializers import (
     JobSerializer,
     JobListSerializer,
@@ -14,6 +23,7 @@ from job.serializers import (
     ApplicationListSerializer,
     ApplicationDetailSerializer,
     ApplicationAdminListSerializer,
+    ApplicationStatusSerializer,
     ResumeSerializer,
     ResumeListSerializer,
     ResumeCreateSerializer)
@@ -39,9 +49,9 @@ class JobViewSet(ModelViewSet):
     def list(self, request, *args, **kwargs):
         user = request.user
         a_student = is_student(user)
-        if a_student:
+        if a_student == "student":
             jobs = Job.objects.filter(batch=user.student_profile.batch)
-        elif a_student == False:
+        elif a_student == "staff":
             jobs = self.queryset
             self.action = "list_admin"
         else:
@@ -54,11 +64,11 @@ class JobViewSet(ModelViewSet):
             user = request.user
             a_student = is_student(user)
             try:
-                if a_student:
+                if a_student == "student":
                     record = Job.objects.filter(pk=pk, batch=user.student_profile.batch).first()
                     if not record:
                         raise Exception(f"Record with given pk:{pk} not found")
-                elif a_student == False:
+                elif a_student == "staff":
                     record = self.queryset.get(pk=pk)
                     self.action = "retrieve_admin"
             except Exception as e:
@@ -102,7 +112,6 @@ class ApplicationViewSet(ModelViewSet):
         if not job:
             return Response({"data": "Given job doesn't exists"}, status=status.HTTP_400_BAD_REQUEST)
         job = Job.objects.filter(pk=job).first()
-        application_status = Application.ApplicationStatus.APPLIED
         application_kwargs = {
             "job_title": job.title,
             "job_description": job.description,
@@ -115,7 +124,6 @@ class ApplicationViewSet(ModelViewSet):
                 application = Application.objects.create(
                     student=student,
                     job=job,
-                    status=application_status,
                     resume=resume,
                     **application_kwargs,
                 )
@@ -143,15 +151,21 @@ class ApplicationViewSet(ModelViewSet):
                         )
         except Exception as e:
             return Response({"data": f"Error: {e}"}, status=status.HTTP_400_BAD_REQUEST)
-        return Response({"data": "Application submitted successfully"})
+        application_status = application.status
+        return Response({
+            "data": "Application submitted successfully",
+            "status": application_status.name if application_status else "Applied",
+        })
 
     def list(self, request, *args, **kwargs):
         user = request.user
         a_student = is_student(user)
-        if a_student == False:
+        print("user: ", user)
+        print("a_student: ", a_student)
+        if a_student == "staff":
             self.action = 'list_admin'
             queryset = self.queryset
-        else:
+        elif a_student == "student":
             queryset = self.queryset.filter(student=user.student_profile)
         serializer = self.get_serializer_class()
         return Response({"data": serializer(queryset, many=True, context={"request": request}).data})
@@ -169,6 +183,16 @@ class ApplicationViewSet(ModelViewSet):
         serializer = self.get_serializer_class()
         print("serializer is: ", serializer)
         return Response({"data": serializer(record, context={"request": request}).data})
+
+
+class ApplicationStatusViewSet(
+    mixins.ListModelMixin,
+    mixins.CreateModelMixin,
+    GenericViewSet,
+):
+    permission_classes = [IsAuthenticated]
+    queryset = ApplicationStatus.objects.all()
+    serializer_class = ApplicationStatusSerializer
 
 
 class ResumeViewSet(ModelViewSet):

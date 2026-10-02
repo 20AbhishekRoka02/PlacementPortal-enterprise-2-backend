@@ -23,6 +23,8 @@ Students list/retrieve jobs filtered to their batch. Resume upload uses `ResumeC
 
 `ApplicationViewSet.create()` validates resume ownership manually, copies job fields and student email into `Application`, then inside `transaction.atomic()` writes the application, its answer snapshots, and reusable student values. Application data can be exported asynchronously as an Excel file plus resumes in a ZIP through the Django admin action.
 
+Application status is a nullable FK to `ApplicationStatus`; new model-created applications default to the seeded `applied` status row, while API serialization presents any null status as `Applied`. The authenticated `/job/application-statuses/` endpoint lists and creates status rows. Application status updates accept a status name or status ID and continue returning the status name.
+
 ## Dynamic Attributes
 
 `Attribute` defines a name, slug, and data type. `JobAttribute` attaches an attribute to a job and stores required/visibility/filter/order settings. `ApplicationAttributeValue` snapshots the submitted label, slug, type, required flag, and stringified value. `StudentAttributeValue` stores the latest reusable JSON value per `(student, attribute)` and prepopulates job-detail fields.

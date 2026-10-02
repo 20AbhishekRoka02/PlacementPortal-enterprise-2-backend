@@ -7,6 +7,7 @@ from django.db import connection
 from django.test import TestCase, TransactionTestCase, override_settings
 from django.db.migrations.executor import MigrationExecutor
 from rest_framework.test import APIClient
+from job.serializers import JobCreateSerializer
 
 from company.models import Company
 from configs.models import ResumeConfig
@@ -172,6 +173,190 @@ class ApplicationStatusTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["data"][0]["status"], "Not Applied")
+
+    def test_staff_can_list_and_create_attributes(self):
+        staff_client = APIClient()
+        staff_client.force_authenticate(self.company_user)
+
+        list_response = staff_client.get("/job/attributes/")
+        self.assertEqual(list_response.status_code, 200)
+        self.assertEqual(list_response.data, [])
+
+        create_response = staff_client.post(
+            "/job/attributes/",
+            {"name": "GPA", "data_type": Attribute.DataType.DECIMAL},
+            format="json",
+        )
+
+        self.assertEqual(create_response.status_code, 201)
+        self.assertEqual(create_response.data["name"], "GPA")
+        self.assertEqual(create_response.data["data_type"], "decimal")
+        self.assertEqual(create_response.data["slug"], "gpa")
+        listed_attributes = staff_client.get("/job/attributes/").data
+        self.assertEqual(listed_attributes[0]["id"], create_response.data["id"])
+
+    def test_only_staff_can_create_attributes_or_jobs(self):
+        attribute_response = self.client.post(
+            "/job/attributes/",
+            {"name": "GPA", "data_type": Attribute.DataType.DECIMAL},
+            format="json",
+        )
+        job_response = self.client.post(
+            "/job/jobs/",
+            {
+                "company": self.job.company_id,
+                "batch": self.job.batch_id,
+                "title": "Student-created job",
+                "description": "Not allowed",
+                "location": "Remote",
+            },
+            format="json",
+        )
+
+        self.assertEqual(attribute_response.status_code, 403)
+        self.assertEqual(job_response.status_code, 403)
+
+        unauthenticated_client = APIClient()
+        self.assertIn(
+            unauthenticated_client.post(
+                "/job/attributes/",
+                {"name": "Unauthenticated", "data_type": Attribute.DataType.TEXT},
+                format="json",
+            ).status_code,
+            (401, 403),
+        )
+
+    def test_staff_can_create_job_with_job_attributes(self):
+        staff_client = APIClient()
+        staff_client.force_authenticate(self.company_user)
+        attribute_response = staff_client.post(
+            "/job/attributes/",
+            {"name": "GPA", "data_type": Attribute.DataType.DECIMAL},
+            format="json",
+        )
+        self.assertEqual(attribute_response.status_code, 201)
+        attribute_id = attribute_response.data["id"]
+
+        response = staff_client.post(
+            "/job/jobs/",
+            {
+                "company": self.job.company_id,
+                "batch": self.job.batch_id,
+                "title": "Data Engineer",
+                "description": "Build data systems",
+                "location": "Remote",
+                "job_attributes": [
+                    {
+                        "attribute": attribute_id,
+                        "required": True,
+                        "visible_to_company": False,
+                        "filterable": False,
+                        "order": 2,
+                    }
+                ],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        created_job = Job.objects.get(pk=response.data["id"])
+        job_attribute = created_job.attributes.get()
+        self.assertEqual(job_attribute.attribute_id, attribute_id)
+        self.assertTrue(job_attribute.required)
+        self.assertFalse(job_attribute.visible_to_company)
+        self.assertFalse(job_attribute.filterable)
+        self.assertEqual(job_attribute.order, 2)
+
+    def test_invalid_or_duplicate_job_attributes_do_not_create_job(self):
+        attribute = Attribute.objects.create(
+            name="GPA",
+            data_type=Attribute.DataType.DECIMAL,
+        )
+        staff_client = APIClient()
+        staff_client.force_authenticate(self.company_user)
+        payload = {
+            "company": self.job.company_id,
+            "batch": self.job.batch_id,
+            "title": "Data Engineer",
+            "description": "Build data systems",
+            "location": "Remote",
+            "job_attributes": [
+                {"attribute": attribute.pk},
+                {"attribute": attribute.pk},
+            ],
+        }
+
+        response = staff_client.post("/job/jobs/", payload, format="json")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(Job.objects.filter(title="Data Engineer").exists())
+
+        payload["job_attributes"] = [{"attribute": 999999}]
+        invalid_reference_response = staff_client.post(
+            "/job/jobs/", payload, format="json"
+        )
+        self.assertEqual(invalid_reference_response.status_code, 400)
+        self.assertFalse(Job.objects.filter(title="Data Engineer").exists())
+
+    def test_staff_can_create_job_without_attributes(self):
+        staff_client = APIClient()
+        staff_client.force_authenticate(self.company_user)
+
+        response = staff_client.post(
+            "/job/jobs/",
+            {
+                "company": self.job.company_id,
+                "batch": self.job.batch_id,
+                "title": "No extra fields",
+                "description": "Existing create payload remains valid",
+                "location": "Remote",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertIn("id", response.data)
+        self.assertNotIn("job_attributes", response.data)
+        created_job = Job.objects.get(pk=response.data["id"])
+        self.assertEqual(created_job.attributes.count(), 0)
+
+    def test_job_and_job_attributes_are_created_atomically(self):
+        first_attribute = Attribute.objects.create(
+            name="GPA",
+            data_type=Attribute.DataType.DECIMAL,
+        )
+        second_attribute = Attribute.objects.create(
+            name="Graduation year",
+            data_type=Attribute.DataType.INTEGER,
+        )
+        payload = {
+            "company": self.job.company_id,
+            "batch": self.job.batch_id,
+            "title": "Atomic creation test",
+            "description": "Test rollback",
+            "location": "Remote",
+            "job_attributes": [
+                {"attribute": first_attribute.pk},
+                {"attribute": second_attribute.pk},
+            ],
+        }
+        serializer = JobCreateSerializer(data=payload)
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        original_bulk_create = JobAttribute.objects.bulk_create
+
+        def bulk_create_then_fail(objects, **kwargs):
+            original_bulk_create(objects, **kwargs)
+            raise RuntimeError("simulated association failure")
+
+        with patch(
+            "job.serializers.JobAttribute.objects.bulk_create",
+            side_effect=bulk_create_then_fail,
+        ):
+            with self.assertRaises(RuntimeError):
+                serializer.save()
+
+        self.assertFalse(Job.objects.filter(title="Atomic creation test").exists())
+        self.assertEqual(JobAttribute.objects.count(), 0)
 
     def test_application_status_can_be_assigned_by_id_or_existing_name(self):
         application = self.create_application()

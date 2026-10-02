@@ -1,6 +1,9 @@
+from django.db import transaction
 from rest_framework import serializers
 from job.models import (
     Job,
+    JobAttribute,
+    Attribute,
     Application,
     ApplicationStatus,
     Resume,
@@ -45,6 +48,47 @@ class JobSerializer(serializers.ModelSerializer):
     class Meta:
         model = Job
         fields = "__all__"
+
+
+class AttributeSerializer(serializers.ModelSerializer):
+    slug = serializers.SlugField(read_only=True, allow_null=True)
+
+    class Meta:
+        model = Attribute
+        fields = ["id", "name", "data_type", "slug"]
+        read_only_fields = ["id", "slug"]
+
+
+class JobAttributeCreateSerializer(serializers.Serializer):
+    attribute = serializers.PrimaryKeyRelatedField(queryset=Attribute.objects.all())
+    required = serializers.BooleanField(required=False, default=False)
+    visible_to_company = serializers.BooleanField(required=False, default=True)
+    filterable = serializers.BooleanField(required=False, default=True)
+    order = serializers.IntegerField(required=False, min_value=0, default=0)
+
+
+class JobCreateSerializer(JobSerializer):
+    job_attributes = JobAttributeCreateSerializer(many=True, required=False, write_only=True)
+
+    class Meta(JobSerializer.Meta):
+        fields = "__all__"
+
+    def validate_job_attributes(self, job_attributes):
+        attribute_ids = [item["attribute"].pk for item in job_attributes]
+        if len(attribute_ids) != len(set(attribute_ids)):
+            raise serializers.ValidationError(
+                "An attribute can only be added once to a job."
+            )
+        return job_attributes
+
+    def create(self, validated_data):
+        job_attributes = validated_data.pop("job_attributes", [])
+        with transaction.atomic():
+            job = Job.objects.create(**validated_data)
+            JobAttribute.objects.bulk_create(
+                [JobAttribute(job=job, **item) for item in job_attributes]
+            )
+        return job
 
 
 class JobListSerializer(serializers.ModelSerializer):

@@ -3,7 +3,7 @@ from rest_framework.viewsets import GenericViewSet, ModelViewSet
 from rest_framework import mixins
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework import status
 from job.models import (
     Job,
@@ -16,6 +16,8 @@ from job.models import (
 )
 from job.serializers import (
     JobSerializer,
+    JobCreateSerializer,
+    AttributeSerializer,
     JobListSerializer,
     JobAdminListSerializer,
     JobDetailSerializer,
@@ -38,6 +40,7 @@ class JobViewSet(ModelViewSet):
 
     def get_serializer_class(self):
         serializer_classes = {
+            'create': JobCreateSerializer,
             'list': JobListSerializer,
             'retrieve': JobDetailSerializer,
             'list_admin': JobAdminListSerializer,
@@ -45,6 +48,11 @@ class JobViewSet(ModelViewSet):
         }
         print("self.action: ", self.action)
         return serializer_classes.get(self.action, JobSerializer)
+
+    def create(self, request, *args, **kwargs):
+        if is_student(request.user) != "staff":
+            raise PermissionDenied("Only staff users can create jobs.")
+        return super().create(request, *args, **kwargs)
 
     def list(self, request, *args, **kwargs):
         user = request.user
@@ -183,6 +191,17 @@ class ApplicationViewSet(ModelViewSet):
         serializer = self.get_serializer_class()
         print("serializer is: ", serializer)
         return Response({"data": serializer(record, context={"request": request}).data})
+
+
+class AttributeViewSet(mixins.ListModelMixin, mixins.CreateModelMixin, GenericViewSet):
+    permission_classes = [IsAuthenticated]
+    queryset = Attribute.objects.all()
+    serializer_class = AttributeSerializer
+
+    def create(self, request, *args, **kwargs):
+        if is_student(request.user) != "staff":
+            raise PermissionDenied("Only staff users can create attributes.")
+        return super().create(request, *args, **kwargs)
 
 
 class ApplicationStatusViewSet(

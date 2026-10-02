@@ -11,7 +11,7 @@ This repository is a Django 5.2 REST backend. It uses PostgreSQL, Redis, RabbitM
 - `job`: jobs, resumes, applications, dynamic attributes, admin views, and exports.
 - `configs`: resume limits.
 
-Project routes are in `placement_portal_enterprise_2_backend/urls.py`: `/api/auth/`, `/job/`, `/student/`, Django admin, Swagger/Redoc, and application-resume viewing. DRF routers expose jobs, applications, and resumes beneath `/job/`.
+Project routes are in `placement_portal_enterprise_2_backend/urls.py`: `/api/auth/`, `/job/`, `/student/`, Django admin, Swagger/Redoc, and application-resume viewing. DRF routers expose jobs, applications, resumes, attributes, and application statuses beneath `/job/`.
 
 ## Authentication and Authorization
 
@@ -29,6 +29,8 @@ Application status is a nullable FK to `ApplicationStatus`; new model-created ap
 
 `Attribute` defines a name, slug, and data type. `JobAttribute` attaches an attribute to a job and stores required/visibility/filter/order settings. `ApplicationAttributeValue` snapshots the submitted label, slug, type, required flag, and stringified value. `StudentAttributeValue` stores the latest reusable JSON value per `(student, attribute)` and prepopulates job-detail fields.
 
+Job and attribute creation is exposed through REST APIs. Authenticated `GET /job/attributes/` lists the catalog; `POST /job/attributes/` creates an attribute from `name` and `data_type` and returns its generated slug. Both attribute creation and `POST /job/jobs/` require `is_student(request.user) == "staff"`. Job creation accepts the regular job fields plus optional write-only `job_attributes`: entries reference existing attribute IDs and may set `required`, `visible_to_company`, `filterable`, and `order`. The serializer creates the job and its `JobAttribute` rows atomically and rejects invalid or duplicate attribute references. The intended sequence for a new attribute is to create it first, then submit its returned ID with the job. Attribute names are not unique in the current model.
+
 ## Invariants and Current Limitations
 
 `Application` is unique per `(student, job)` and retains job/email snapshot fields; its job, student, and resume foreign keys use cascading deletion. A `JobAttribute` is unique per `(job, attribute)`; student values are unique per `(student, attribute)`.
@@ -37,4 +39,4 @@ Application creation bypasses a create serializer. It does not currently validat
 
 ## Frontend Boundary and Recent Work
 
-No frontend source is present here; client payload/error handling cannot be inferred beyond the API code. Recent Git history records dynamic form/admin model work, application submission/list/detail updates, profile APIs, application counts/admin links, and ZIP export of Excel plus resumes.
+No frontend source is present here; client payload/error handling cannot be inferred beyond the API code. Recent functionality includes the staff-gated job/attribute creation APIs, dynamic form/admin model work, application submission/list/detail updates, profile APIs, application counts/admin links, and ZIP export of Excel plus resumes.

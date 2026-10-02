@@ -14,7 +14,6 @@ from job.models import (
     ApplicationExport
 )
 from .tasks import generate_application_export
-from users.models import UserRole
 # Register your models here.
 class AttributeAdmin(admin.ModelAdmin):
     list_display = ("name", "data_type")
@@ -37,11 +36,6 @@ class JobAdmin(admin.ModelAdmin):
     actions = ["export_application_data"]
     inlines = [JobAttributeInline]
     def get_queryset(self, request):
-        if request.user.role == UserRole.COMPANY:
-            return super().get_queryset(request).filter(
-                company=request.user.company_profile
-            )
-            
         queryset = super().get_queryset(request)
         return queryset.annotate(
             _application_count=Count("applications")
@@ -118,11 +112,6 @@ class ApplicationAdmin(admin.ModelAdmin):
     inlines = [ApplicationAttributeInline]
 
     def get_queryset(self, request):
-        if request.user.role == UserRole.COMPANY:
-            return super().get_queryset(request).filter(
-                job__company=request.user.company_profile
-            )
-            
         return super().get_queryset(request)
     
     def view_resume(self, obj):

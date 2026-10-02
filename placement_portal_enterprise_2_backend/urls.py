@@ -37,6 +37,7 @@ urlpatterns = [
     path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
     path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
     path('job/', include('job.urls')),
+    path('company/', include('company.urls')),
     path('student/', include('student.urls')),
     path(
         "application/<int:application_id>/resume/",

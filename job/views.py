@@ -79,6 +79,8 @@ class JobViewSet(ModelViewSet):
                 elif a_student == "staff":
                     record = self.queryset.get(pk=pk)
                     self.action = "retrieve_admin"
+                else:
+                    return Response(status=status.HTTP_404_NOT_FOUND)
             except Exception as e:
                 print("Error: ", e)
                 return Response(status=status.HTTP_404_NOT_FOUND)
@@ -175,6 +177,8 @@ class ApplicationViewSet(ModelViewSet):
             queryset = self.queryset
         elif a_student == "student":
             queryset = self.queryset.filter(student=user.student_profile)
+        else:
+            queryset = self.queryset.none()
         serializer = self.get_serializer_class()
         return Response({"data": serializer(queryset, many=True, context={"request": request}).data})
 

@@ -7,15 +7,15 @@ This repository is a Django 5.2 REST backend. It uses PostgreSQL, Redis, RabbitM
 ## Domains and Entry Points
 
 - `users`: custom email-login `User`, JWT auth, profile API, password-reset APIs.
-- `student`, `company`, `course`: student and company profiles plus course/batch ownership.
+- `student`, `company`, `course`: student profiles, independent company records, and course/batch ownership. Companies no longer belong to user accounts.
 - `job`: jobs, resumes, applications, dynamic attributes, admin views, and exports.
 - `configs`: resume limits.
 
-Project routes are in `placement_portal_enterprise_2_backend/urls.py`: `/api/auth/`, `/job/`, `/student/`, Django admin, Swagger/Redoc, and application-resume viewing. DRF routers expose jobs, applications, resumes, attributes, and application statuses beneath `/job/`.
+Project routes are in `placement_portal_enterprise_2_backend/urls.py`: `/api/auth/`, `/job/`, `/company/`, `/student/`, Django admin, Swagger/Redoc, and application-resume viewing. DRF routers expose jobs, applications, resumes, attributes, and application statuses beneath `/job/`, and company list/detail/create routes beneath `/company/`.
 
 ## Authentication and Authorization
 
-DRF uses `dj_rest_auth.jwt_auth.JWTCookieAuthentication`; JWT cookies are `access` and `refresh`, configured HTTP-only and `SameSite=Lax`. The job, application, and resume viewsets declare `IsAuthenticated`. Role helpers and role-specific list/detail behavior exist, but application creation itself only requires authentication then assumes `request.user.student_profile`; it does not explicitly enforce `UserRole.STUDENT`.
+DRF uses `dj_rest_auth.jwt_auth.JWTCookieAuthentication`; JWT cookies are `access` and `refresh`, configured HTTP-only and `SameSite=Lax`. The `UserRole` choices are admin, university, student, and placement officer; there is no Company user role. Existing Company-role accounts are retained by migration with `role=NULL`, `is_staff=False`, and active status preserved. Company list/detail/create APIs and job/attribute creation use `is_student(user) == "staff"` for authorization. Application creation still only requires authentication then assumes `request.user.student_profile`; it does not explicitly enforce `UserRole.STUDENT`.
 
 ## Core Data Flows
 
@@ -29,7 +29,9 @@ Application status is a nullable FK to `ApplicationStatus`; new model-created ap
 
 `Attribute` defines a name, slug, and data type. `JobAttribute` attaches an attribute to a job and stores required/visibility/filter/order settings. `ApplicationAttributeValue` snapshots the submitted label, slug, type, required flag, and stringified value. `StudentAttributeValue` stores the latest reusable JSON value per `(student, attribute)` and prepopulates job-detail fields.
 
-Job and attribute creation is exposed through REST APIs. Authenticated `GET /job/attributes/` lists the catalog; `POST /job/attributes/` creates an attribute from `name` and `data_type` and returns its generated slug. Both attribute creation and `POST /job/jobs/` require `is_student(request.user) == "staff"`. Job creation accepts the regular job fields plus optional write-only `job_attributes`: entries reference existing attribute IDs and may set `required`, `visible_to_company`, `filterable`, and `order`. The serializer creates the job and its `JobAttribute` rows atomically and rejects invalid or duplicate attribute references. The intended sequence for a new attribute is to create it first, then submit its returned ID with the job. Attribute names are not unique in the current model.
+Job and attribute creation is exposed through REST APIs. Authenticated `GET /job/attributes/` lists the catalog; `POST /job/attributes/` creates an attribute from `name` and `data_type` and returns its generated slug. Both attribute creation and `POST /job/jobs/` require `is_student(request.user) == "staff"`. Job creation accepts either an existing Company primary key in `company` or new company fields in write-only `company_data`, never company-name matching. Company creation, the job, and optional `JobAttribute` rows are atomic. The existing-ID request contract remains supported. The intended sequence for a new attribute is to create it first, then submit its returned ID with the job. Attribute names are not unique in the current model.
+
+Staff users can list/retrieve companies and create them through `/company/companies/`; Company records contain `name`, `website`, `hr_phone_number`, and `hr_email`, with no User FK. During migration, each linked user’s email is copied to its Company’s `hr_email`; Company IDs and job references are preserved. The Company group and its grants are removed. Resume viewing is available to `ADMIN`, `UNIVERSITY`, and `PLACEMENT_OFFICER` roles, as well as superusers.
 
 ## Invariants and Current Limitations
 
@@ -39,4 +41,4 @@ Application creation bypasses a create serializer. It does not currently validat
 
 ## Frontend Boundary and Recent Work
 
-No frontend source is present here; client payload/error handling cannot be inferred beyond the API code. Recent functionality includes the staff-gated job/attribute creation APIs, dynamic form/admin model work, application submission/list/detail updates, profile APIs, application counts/admin links, and ZIP export of Excel plus resumes.
+No frontend source is present here; client payload/error handling cannot be inferred beyond the API code. Recent functionality includes staff-gated Company list/create APIs, removal of Company-user coupling and role, inline Company creation during job creation, staff-gated job/attribute creation APIs, dynamic form/admin model work, application submission/list/detail updates, profile APIs, application counts/admin links, and ZIP export of Excel plus resumes.

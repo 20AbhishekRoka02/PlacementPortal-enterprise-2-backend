@@ -62,13 +62,13 @@ class ApplicationStatusTests(TestCase):
         )
         self.student = Student.objects.create(user=self.student_user, batch=batch)
 
-        self.company_user = User.objects.create_user(
-            username="company",
-            email="company@example.com",
+        self.staff_user = User.objects.create_user(
+            username="placement-officer",
+            email="placement-officer@example.com",
             password="password",
-            role=UserRole.COMPANY,
+            role=UserRole.PLACEMENT_OFFICER,
         )
-        company = Company.objects.create(user=self.company_user, name="Example Company")
+        company = Company.objects.create(name="Example Company")
         self.job = Job.objects.create(
             company=company,
             batch=batch,
@@ -147,6 +147,61 @@ class ApplicationStatusTests(TestCase):
         application = Application.objects.get(student=self.student, job=self.job)
         self.assertEqual(application.status, self.applied_status)
 
+    def test_resume_view_is_available_to_authorized_roles_and_superusers(self):
+        application = self.create_application(resume=self.resume)
+
+        for role in (UserRole.ADMIN, UserRole.UNIVERSITY):
+            with self.subTest(role=role):
+                user = User.objects.create_user(
+                    username=f"resume-role-{role}",
+                    email=f"resume-{role}@example.com",
+                    password="password",
+                    role=role,
+                )
+                client = APIClient()
+                client.force_login(user)
+                response = client.get(f"/application/{application.pk}/resume/")
+                self.assertEqual(response.status_code, 200)
+
+        placement_officer_client = APIClient()
+        placement_officer_client.force_login(self.staff_user)
+        placement_officer_response = placement_officer_client.get(
+            f"/application/{application.pk}/resume/"
+        )
+        self.assertEqual(placement_officer_response.status_code, 200)
+
+        for user in (self.student_user,):
+            with self.subTest(role=user.role):
+                client = APIClient()
+                client.force_login(user)
+                response = client.get(f"/application/{application.pk}/resume/")
+                self.assertEqual(response.status_code, 404)
+
+        roleless_user = User.objects.create_user(
+            username="resume-roleless",
+            email="resume-roleless@example.com",
+            password="password",
+            role=None,
+        )
+        roleless_client = APIClient()
+        roleless_client.force_login(roleless_user)
+        roleless_response = roleless_client.get(
+            f"/application/{application.pk}/resume/"
+        )
+        self.assertEqual(roleless_response.status_code, 404)
+
+        superuser = User.objects.create_superuser(
+            username="resume-admin",
+            email="resume-superuser@example.com",
+            password="password",
+        )
+        admin_client = APIClient()
+        admin_client.force_login(superuser)
+        admin_response = admin_client.get(
+            f"/application/{application.pk}/resume/"
+        )
+        self.assertEqual(admin_response.status_code, 200)
+
     def test_null_status_is_presented_as_applied_in_application_and_job_apis(self):
         application = self.create_application(status=None)
 
@@ -162,9 +217,9 @@ class ApplicationStatusTests(TestCase):
         self.assertEqual(jobs_response.status_code, 200)
         self.assertEqual(jobs_response.data["data"][0]["status"], "Applied")
 
-        company_client = APIClient()
-        company_client.force_authenticate(self.company_user)
-        admin_list_response = company_client.get("/job/applications/")
+        staff_client = APIClient()
+        staff_client.force_authenticate(self.staff_user)
+        admin_list_response = staff_client.get("/job/applications/")
         self.assertEqual(admin_list_response.status_code, 200)
         self.assertEqual(admin_list_response.data["data"][0]["status"], "Applied")
 
@@ -174,9 +229,30 @@ class ApplicationStatusTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["data"][0]["status"], "Not Applied")
 
+    def test_user_without_role_cannot_retrieve_jobs_or_applications(self):
+        former_company_user = User.objects.create_user(
+            username="former-company",
+            email="former-company@example.com",
+            password="password",
+            role=None,
+            is_staff=False,
+        )
+        client = APIClient()
+        client.force_authenticate(former_company_user)
+
+        job_list_response = client.get("/job/jobs/")
+        job_detail_response = client.get(f"/job/jobs/{self.job.pk}/")
+        application_list_response = client.get("/job/applications/")
+
+        self.assertEqual(job_list_response.status_code, 200)
+        self.assertEqual(job_list_response.data["data"], [])
+        self.assertEqual(job_detail_response.status_code, 404)
+        self.assertEqual(application_list_response.status_code, 200)
+        self.assertEqual(application_list_response.data["data"], [])
+
     def test_staff_can_list_and_create_attributes(self):
         staff_client = APIClient()
-        staff_client.force_authenticate(self.company_user)
+        staff_client.force_authenticate(self.staff_user)
 
         list_response = staff_client.get("/job/attributes/")
         self.assertEqual(list_response.status_code, 200)
@@ -228,7 +304,7 @@ class ApplicationStatusTests(TestCase):
 
     def test_staff_can_create_job_with_job_attributes(self):
         staff_client = APIClient()
-        staff_client.force_authenticate(self.company_user)
+        staff_client.force_authenticate(self.staff_user)
         attribute_response = staff_client.post(
             "/job/attributes/",
             {"name": "GPA", "data_type": Attribute.DataType.DECIMAL},
@@ -273,7 +349,7 @@ class ApplicationStatusTests(TestCase):
             data_type=Attribute.DataType.DECIMAL,
         )
         staff_client = APIClient()
-        staff_client.force_authenticate(self.company_user)
+        staff_client.force_authenticate(self.staff_user)
         payload = {
             "company": self.job.company_id,
             "batch": self.job.batch_id,
@@ -300,7 +376,7 @@ class ApplicationStatusTests(TestCase):
 
     def test_staff_can_create_job_without_attributes(self):
         staff_client = APIClient()
-        staff_client.force_authenticate(self.company_user)
+        staff_client.force_authenticate(self.staff_user)
 
         response = staff_client.post(
             "/job/jobs/",
@@ -320,6 +396,58 @@ class ApplicationStatusTests(TestCase):
         created_job = Job.objects.get(pk=response.data["id"])
         self.assertEqual(created_job.attributes.count(), 0)
 
+    def test_staff_can_create_job_with_new_company_data(self):
+        staff_client = APIClient()
+        staff_client.force_authenticate(self.staff_user)
+
+        response = staff_client.post(
+            "/job/jobs/",
+            {
+                "company_data": {
+                    "name": "New Company",
+                    "website": "https://new.example.com",
+                    "hr_email": "hr@new.example.com",
+                    "hr_phone_number": "1234567890",
+                },
+                "batch": self.job.batch_id,
+                "title": "New company job",
+                "description": "Created with its company",
+                "location": "Remote",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        created_job = Job.objects.get(pk=response.data["id"])
+        self.assertEqual(created_job.company.name, "New Company")
+        self.assertEqual(created_job.company.hr_email, "hr@new.example.com")
+
+    def test_job_creation_requires_exactly_one_company_input(self):
+        staff_client = APIClient()
+        staff_client.force_authenticate(self.staff_user)
+        payload = {
+            "batch": self.job.batch_id,
+            "title": "Missing company",
+            "description": "Invalid request",
+            "location": "Remote",
+        }
+
+        missing_response = staff_client.post("/job/jobs/", payload, format="json")
+        both_response = staff_client.post(
+            "/job/jobs/",
+            {
+                **payload,
+                "company": self.job.company_id,
+                "company_data": {"name": "Also invalid"},
+            },
+            format="json",
+        )
+
+        self.assertEqual(missing_response.status_code, 400)
+        self.assertEqual(both_response.status_code, 400)
+        self.assertFalse(Job.objects.filter(title="Missing company").exists())
+        self.assertFalse(Company.objects.filter(name="Also invalid").exists())
+
     def test_job_and_job_attributes_are_created_atomically(self):
         first_attribute = Attribute.objects.create(
             name="GPA",
@@ -330,7 +458,10 @@ class ApplicationStatusTests(TestCase):
             data_type=Attribute.DataType.INTEGER,
         )
         payload = {
-            "company": self.job.company_id,
+            "company_data": {
+                "name": "Atomic Company",
+                "hr_email": "atomic@example.com",
+            },
             "batch": self.job.batch_id,
             "title": "Atomic creation test",
             "description": "Test rollback",
@@ -356,6 +487,7 @@ class ApplicationStatusTests(TestCase):
                 serializer.save()
 
         self.assertFalse(Job.objects.filter(title="Atomic creation test").exists())
+        self.assertFalse(Company.objects.filter(name="Atomic Company").exists())
         self.assertEqual(JobAttribute.objects.count(), 0)
 
     def test_application_status_can_be_assigned_by_id_or_existing_name(self):
@@ -416,8 +548,16 @@ class ApplicationStatusTests(TestCase):
 
 
 class ApplicationStatusMigrationTests(TransactionTestCase):
-    migrate_from = [("job", "0020_alter_attribute_data_type")]
-    migrate_to = [("job", "0021_application_status")]
+    migrate_from = [
+        ("company", "0003_remove_company_user"),
+        ("users", "0003_remove_company_role"),
+        ("job", "0020_alter_attribute_data_type"),
+    ]
+    migrate_to = [
+        ("company", "0003_remove_company_user"),
+        ("users", "0003_remove_company_role"),
+        ("job", "0021_application_status"),
+    ]
 
     def setUp(self):
         super().setUp()
@@ -425,7 +565,6 @@ class ApplicationStatusMigrationTests(TransactionTestCase):
         executor.migrate(self.migrate_from)
         old_apps = executor.loader.project_state(self.migrate_from).apps
 
-        JobModel = old_apps.get_model("job", "Job")
         ApplicationModel = old_apps.get_model("job", "Application")
 
         student_user = User.objects.create_user(
@@ -434,12 +573,6 @@ class ApplicationStatusMigrationTests(TransactionTestCase):
             password="password",
             role="student",
         )
-        company_user = User.objects.create_user(
-            username="migration-company",
-            email="migration-company@example.com",
-            password="password",
-            role="company",
-        )
         course = Course.objects.create(name="Migration Course", semester=1, years=4)
         batch = Batch.objects.create(
             course=course,
@@ -447,7 +580,7 @@ class ApplicationStatusMigrationTests(TransactionTestCase):
             end_year=2029,
         )
         student = Student.objects.create(user=student_user, batch=batch)
-        company = Company.objects.create(user=company_user, name="Migration Company")
+        company = Company.objects.create(name="Migration Company")
         job = Job.objects.create(
             company=company,
             batch=batch,

@@ -2,7 +2,6 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.models import Group
 from users.models import User, UserRole
-from company.models import Company
 from student.models import Student
 # Register your models here.
 
@@ -31,19 +30,14 @@ class UserAdmin(BaseUserAdmin):
     def save_model(self, request, obj, form, change):
         if not obj.username:
             obj.username = obj.email
-        if obj.role in [UserRole.ADMIN, UserRole.UNIVERSITY, UserRole.COMPANY, UserRole.PLACEMENT_OFFICER]:
+        if obj.role in [UserRole.ADMIN, UserRole.UNIVERSITY, UserRole.PLACEMENT_OFFICER]:
             if obj.role in [UserRole.ADMIN, UserRole.UNIVERSITY]:
                 obj.is_superuser = True
             obj.is_staff = True
 
         super().save_model(request, obj, form, change)
 
-        if obj.role == UserRole.COMPANY:
-            company_group, _ = Group.objects.get_or_create(name='Company')
-            Company.objects.get_or_create(user=obj)
-            obj.groups.add(company_group)
-        
-        elif obj.role == UserRole.PLACEMENT_OFFICER:
+        if obj.role == UserRole.PLACEMENT_OFFICER:
             placement_officer_group, _ = Group.objects.get_or_create(name='Placement_Officer')
             obj.groups.add(placement_officer_group)
 

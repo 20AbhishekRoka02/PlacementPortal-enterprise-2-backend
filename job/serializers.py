@@ -12,7 +12,8 @@ from job.models import (
 )
 from job.helpers import file_size_in_kbs
 from decimal import Decimal
-from company.serializers import CompanySerializer
+from company.models import Company
+from company.serializers import CompanyCreateSerializer, CompanySerializer
 
 
 class ApplicationStatusSerializer(serializers.ModelSerializer):
@@ -68,6 +69,11 @@ class JobAttributeCreateSerializer(serializers.Serializer):
 
 
 class JobCreateSerializer(JobSerializer):
+    company = serializers.PrimaryKeyRelatedField(
+        queryset=Company.objects.all(),
+        required=False,
+    )
+    company_data = CompanyCreateSerializer(required=False, write_only=True)
     job_attributes = JobAttributeCreateSerializer(many=True, required=False, write_only=True)
 
     class Meta(JobSerializer.Meta):
@@ -81,10 +87,23 @@ class JobCreateSerializer(JobSerializer):
             )
         return job_attributes
 
+    def validate(self, attrs):
+        has_company = attrs.get("company") is not None
+        has_company_data = attrs.get("company_data") is not None
+        if has_company == has_company_data:
+            raise serializers.ValidationError(
+                "Provide either an existing company ID or company_data."
+            )
+        return attrs
+
     def create(self, validated_data):
         job_attributes = validated_data.pop("job_attributes", [])
+        company_data = validated_data.pop("company_data", None)
+        company = validated_data.pop("company", None)
         with transaction.atomic():
-            job = Job.objects.create(**validated_data)
+            if company_data is not None:
+                company = Company.objects.create(**company_data)
+            job = Job.objects.create(company=company, **validated_data)
             JobAttribute.objects.bulk_create(
                 [JobAttribute(job=job, **item) for item in job_attributes]
             )

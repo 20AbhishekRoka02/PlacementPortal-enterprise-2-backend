@@ -44,6 +44,7 @@ urlpatterns = [
         view_resume,
         name="view_resume",
     ),
+    path('course/', include('course.urls')),
 ]
 
 if settings.DEBUG:

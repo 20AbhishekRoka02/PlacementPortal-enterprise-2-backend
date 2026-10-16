@@ -170,11 +170,10 @@ class ApplicationViewSet(ModelViewSet):
     def list(self, request, *args, **kwargs):
         user = request.user
         a_student = is_student(user)
-        print("user: ", user)
-        print("a_student: ", a_student)
+        job_id = request.query_params.get('job_id')
         if a_student == "staff":
             self.action = 'list_admin'
-            queryset = self.queryset
+            queryset = self.queryset.filter(job__id=int(job_id)) if job_id else self.queryset
         elif a_student == "student":
             queryset = self.queryset.filter(student=user.student_profile)
         else:

@@ -1,44 +1,129 @@
 # Project Context
 
+Last reviewed: 17 October 2026. Update this file with every non-trivial code,
+schema, API, workflow, or infrastructure change.
+
 ## System Architecture
 
-This repository is a Django 5.2 REST backend. It uses PostgreSQL, Redis, RabbitMQ, Celery worker/beat, Flower, and Adminer in `compose.yaml`. Django settings are selected by `DJANGO_ENV`: `settings/development.py` or `settings/production.py`, both built on `settings/base.py`. Celery imports email, notification, and resume-parser tasks; `job.tasks` creates asynchronous application-export ZIPs.
+This is a Django 5.2 / DRF backend, targeting Python 3.11. PostgreSQL stores
+application data; Redis is the cache/result backend; RabbitMQ brokers Celery
+tasks. `compose.yaml` starts Django, PostgreSQL, Adminer, RabbitMQ, Redis,
+Celery worker, Celery Beat, and Flower. Settings are selected from `DJANGO_ENV`
+(`settings.development` or `settings.production`) and extend `settings.base`.
 
-## Domains and Entry Points
+Celery imports email, notification, resume-parser, and job-export tasks. Only
+password-reset email and application export currently have substantive flows;
+notification and resume-parser tasks are placeholders/not implemented.
 
-- `users`: custom email-login `User`, JWT auth, profile API, password-reset APIs.
-- `student`, `company`, `course`: student profiles, independent company records, and course/batch ownership. Companies no longer belong to user accounts.
-- `job`: jobs, resumes, applications, dynamic attributes, admin views, and exports.
-- `configs`: resume limits.
+## Applications and Routes
 
-Project routes are in `placement_portal_enterprise_2_backend/urls.py`: `/api/auth/`, `/job/`, `/company/`, `/student/`, Django admin, Swagger/Redoc, and application-resume viewing. DRF routers expose jobs, applications, resumes, attributes, and application statuses beneath `/job/`, and company list/detail/create routes beneath `/company/`.
+| Area | Responsibility | Main route prefix |
+| --- | --- | --- |
+| `users` | Custom email-login user, JWT auth, password reset, basic user profile | `/api/auth/` |
+| `student` | Student profile display/update | `/student/` |
+| `company` | Independent company contact records | `/company/companies/` |
+| `course` | Course and batch data | `/course/batches/` |
+| `job` | Jobs, resumes, applications, attributes, statuses, exports | `/job/` |
+| `configs` | Admin-managed resume configuration | Django admin only |
 
-## Authentication and Authorization
+The project also exposes `/admin/`, `/swagger/`, `/redoc/`, and
+`/application/<application_id>/resume/`. Router resources beneath `/job/` are
+`jobs`, `applications`, `resumes`, `attributes`, and `application-statuses`.
+There is no frontend source in this repository.
 
-DRF uses `dj_rest_auth.jwt_auth.JWTCookieAuthentication`; JWT cookies are `access` and `refresh`, configured HTTP-only and `SameSite=Lax`. The `UserRole` choices are admin, university, student, and placement officer; there is no Company user role. Existing Company-role accounts are retained by migration with `role=NULL`, `is_staff=False`, and active status preserved. Company list/detail/create APIs and job/attribute creation use `is_student(user) == "staff"` for authorization. Application creation still only requires authentication then assumes `request.user.student_profile`; it does not explicitly enforce `UserRole.STUDENT`.
+## Identity and Access Model
 
-## Core Data Flows
+`users.User` authenticates by unique email. DRF uses HTTP-only JWT cookies named
+`access` and `refresh` (`SameSite=Lax`; production additionally sets `Secure`).
+Roles are `admin`, `university`, `student`, and `placement_officer`; Company is
+not a user role and `Company` has no User foreign key. Legacy Company accounts
+were retained as active role-less non-staff accounts by migration.
 
-Students list/retrieve jobs filtered to their batch. Resume upload uses `ResumeCreateSerializer`, then `Resume.clean()`/`save()` enforce PDF, size, and configured per-student count rules. An application is submitted to `POST /job/applications/` with `job`, integer `resume_id`, and optional `answers` mapping.
+The helper `is_student()` classifies any non-student role as `staff`. Therefore
+job/attribute creation and Company APIs are staff-gated, but this is role-based
+rather than `is_staff`-based. Resume file viewing is restricted to superusers
+or `ADMIN`, `UNIVERSITY`, and `PLACEMENT_OFFICER` roles.
 
-`ApplicationViewSet.create()` validates resume ownership manually, copies job fields and student email into `Application`, then inside `transaction.atomic()` writes the application, its answer snapshots, and reusable student values. Application data can be exported asynchronously as an Excel file plus resumes in a ZIP through the Django admin action.
+## Core Data Model and Flows
 
-Application status is a nullable FK to `ApplicationStatus`; new model-created applications default to the seeded `applied` status row, while API serialization presents any null status as `Applied`. The authenticated `/job/application-statuses/` endpoint lists and creates status rows. Application status updates accept a status name or status ID and continue returning the status name.
+`Course` owns `Batch`; a `Student` is a one-to-one User profile and can belong
+to one batch. A `Job` belongs to one Company and Batch. Students see only jobs
+for their batch; staff see all jobs and the applications embedded in job detail.
 
-## Dynamic Attributes
+Staff create an Attribute first (`POST /job/attributes/`), then create a Job.
+A job payload supplies exactly one of an existing `company` ID or write-only
+`company_data`, plus optional `job_attributes`. The Company, Job, and attribute
+links are created atomically. `JobAttribute` is unique per `(job, attribute)`.
 
-`Attribute` defines a name, slug, and data type. `JobAttribute` attaches an attribute to a job and stores required/visibility/filter/order settings. `ApplicationAttributeValue` snapshots the submitted label, slug, type, required flag, and stringified value. `StudentAttributeValue` stores the latest reusable JSON value per `(student, attribute)` and prepopulates job-detail fields.
+Students upload PDF resumes through `/job/resumes/`. Upload validation limits
+the file to 20 KB and `Resume.clean()` also enforces the singleton
+`ResumeConfig.max_number_of_resumes` under a row lock. `max_resume_size` exists
+in configuration but is not yet used: the 20 KB size limit is currently
+hard-coded in model and serializer. Resume parsing/status tracking is not wired
+into the upload flow.
 
-Job and attribute creation is exposed through REST APIs. Authenticated `GET /job/attributes/` lists the catalog; `POST /job/attributes/` creates an attribute from `name` and `data_type` and returns its generated slug. Both attribute creation and `POST /job/jobs/` require `is_student(request.user) == "staff"`. Job creation accepts either an existing Company primary key in `company` or new company fields in write-only `company_data`, never company-name matching. Company creation, the job, and optional `JobAttribute` rows are atomic. The existing-ID request contract remains supported. The intended sequence for a new attribute is to create it first, then submit its returned ID with the job. Attribute names are not unique in the current model.
+Application submission is `POST /job/applications/` with `job`, integer
+`resume_id`, and optional `answers` keyed by Attribute ID. The view verifies
+that the resume belongs to the current student's profile, snapshots the job
+title/description/location/salary and student email, then atomically creates:
 
-Staff users can list/retrieve companies and create them through `/company/companies/`; Company records contain `name`, `website`, `hr_phone_number`, and `hr_email`, with no User FK. During migration, each linked user’s email is copied to its Company’s `hr_email`; Company IDs and job references are preserved. The Company group and its grants are removed. Resume viewing is available to `ADMIN`, `UNIVERSITY`, and `PLACEMENT_OFFICER` roles, as well as superusers.
+1. the `Application`;
+2. `ApplicationAttributeValue` records containing submitted field snapshots;
+3. current `StudentAttributeValue` records for future form prefill.
 
-## Invariants and Current Limitations
+An Application is unique per `(student, job)`. Status is a protected nullable
+foreign key to `ApplicationStatus`; migration seeds legacy statuses including
+`Applied`, and new ORM-created applications default to its `applied` code. API
+output renders a null value as `Applied`. Application updates use the default
+ModelViewSet serializer and accept a status ID or existing status name.
 
-`Application` is unique per `(student, job)` and retains job/email snapshot fields; its job, student, and resume foreign keys use cascading deletion. A `JobAttribute` is unique per `(job, attribute)`; student values are unique per `(student, attribute)`.
+The Django-admin Job action queues one-job application exports. `job.tasks`
+creates a ZIP containing `applications.xlsx` and readable attached resumes;
+`ApplicationExport` records pending/processing/completed/failed state and file
+metadata.
 
-Application creation bypasses a create serializer. It does not currently validate complete required answers or answer values against dynamic data types, and it does not enforce batch eligibility, deadline, or an explicit student role. A nonexistent but truthy job ID can fail before its `try` block. Existing app `tests.py` files are largely generated empty test shells.
+## Dynamic Attributes: Important Boundary
 
-## Frontend Boundary and Recent Work
+`Attribute` is the shared field catalogue with data type and generated slug.
+`JobAttribute` configures a catalogue field for a particular job (required,
+visibility, filterability, order). `StudentAttributeValue` is the latest,
+reusable JSON profile value, unique per `(student, attribute)`. In contrast,
+`ApplicationAttributeValue` is immutable-in-intent submission snapshot data;
+it stores the label, slug, type, required flag, and stringified answer without
+a foreign key to Attribute. Do not collapse these two value types when changing
+application or profile logic.
 
-No frontend source is present here; client payload/error handling cannot be inferred beyond the API code. Recent functionality includes staff-gated Company list/create APIs, removal of Company-user coupling and role, inline Company creation during job creation, staff-gated job/attribute creation APIs, dynamic form/admin model work, application submission/list/detail updates, profile APIs, application counts/admin links, and ZIP export of Excel plus resumes.
+## Known Constraints and Follow-up Work
+
+- Application creation assumes `request.user.student_profile`; it does not
+  explicitly enforce the student role, job batch eligibility, or job deadline.
+  An invalid truthy job ID is dereferenced before the transaction/error handler.
+- Required dynamic answers, answers for only the job's attributes, and data-type
+  validation are not enforced server-side. This is a priority for any dynamic
+  attribute work.
+- Several list/detail serializers perform related-object queries per row; use
+  `select_related`/`prefetch_related` if extending these endpoints.
+- Resume, job, and student foreign keys on Application currently use `CASCADE`.
+  Deleting a resume deletes linked applications, despite the older planning note
+  proposing `SET_NULL`; do not change this without deciding the retention
+  contract and adding a migration/tests. The resume file is physically removed
+  by `Resume.delete()`.
+- Student-only endpoints and application retrieval assume a student profile;
+  staff cannot retrieve an individual application through the current API.
+  `BatchViewSet` has no authentication/authorization override.
+- There is no pagination, deadline enforcement, soft deletion, or API endpoint
+  for exports. Production host/CORS settings remain permissive and should be
+  hardened before deployment.
+
+## Tests and Working Convention
+
+Most meaningful automated coverage is in `job/tests.py` and `company/tests.py`:
+application status migration/API behavior, roles, company migration/API behavior,
+job and dynamic-attribute creation, and atomic rollback. The other app test
+files are empty shells. Run the focused app test first, then broader tests when
+practical.
+
+Before a non-trivial change, read the relevant sections here and inspect the
+affected code path. Update this document in the same change set with factual
+implemented behavior, changed contracts, migrations, and remaining decisions;
+do not use it as a substitute for source-level verification.

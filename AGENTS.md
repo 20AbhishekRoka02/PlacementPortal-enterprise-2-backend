@@ -119,6 +119,13 @@ Update project documentation when a change introduces or modifies an important a
 
 Do not create documentation for trivial implementation details.
 
+`.codex/project-context.md` is the living implementation reference for this
+repository. Before a non-trivial change, read the sections relevant to the
+work; after every code, schema, API, workflow, or infrastructure change, update
+it in the same change set to reflect the implemented behavior, constraints, and
+known follow-up work. Keep it factual and concise rather than duplicating source
+code.
+
 ## Git
 
 Keep commits scoped and use concise imperative messages such as:

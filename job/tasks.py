@@ -2,7 +2,6 @@
 import io
 import os
 import zipfile
-from datetime import datetime
 
 from celery import shared_task
 from django.core.files.base import ContentFile
@@ -18,8 +17,9 @@ def generate_application_export(export_id):
     export = ApplicationExport.objects.get(pk=export_id)
 
     export.status = ApplicationExport.Status.PROCESSING
+    export.current_step = ApplicationExport.Step.BUILDING_SPREADSHEET
     export.started_at = timezone.now()
-    export.save(update_fields=["status", "started_at"])
+    export.save(update_fields=["status", "current_step", "started_at"])
 
     try:
         jobs = export.jobs.all()
@@ -33,17 +33,26 @@ def generate_application_export(export_id):
         job = jobs.first()
         job_attributes = job.attributes.all()
 
-        applications = (
+        applications = list(
             Application.objects
             .filter(job=job)
             .select_related(
-                "student",
+                "student__user",
                 "resume",
             )
             .prefetch_related(
                 "attributes"
             )
         )
+
+        resumes_to_export = [
+            application.resume
+            for application in applications
+            if application.resume and application.resume.file
+        ]
+        export.total_applications = len(applications)
+        export.total_resumes = len(resumes_to_export)
+        export.save(update_fields=["total_applications", "total_resumes"])
 
         excel_buffer = io.BytesIO()
 
@@ -90,6 +99,14 @@ def generate_application_export(export_id):
             worksheet.append(row)
 
             application_count += 1
+            export.processed_applications = application_count
+            export.progress_percentage = (
+                int(application_count * 30 / export.total_applications)
+                if export.total_applications else 30
+            )
+            export.save(
+                update_fields=["processed_applications", "progress_percentage"]
+            )
 
         workbook.save(excel_buffer)
         excel_buffer.seek(0)
@@ -111,6 +128,10 @@ def generate_application_export(export_id):
                 "applications.xlsx",
                 excel_buffer.getvalue(),
             )
+
+            export.current_step = ApplicationExport.Step.ADDING_RESUMES
+            export.progress_percentage = 30
+            export.save(update_fields=["current_step", "progress_percentage"])
 
             # Add resumes
             for application in applications:
@@ -137,6 +158,14 @@ def generate_application_export(export_id):
                     )
 
                     resume_count += 1
+                    export.processed_resumes += 1
+                    export.progress_percentage = 30 + (
+                        int(export.processed_resumes * 65 / export.total_resumes)
+                        if export.total_resumes else 65
+                    )
+                    export.save(
+                        update_fields=["processed_resumes", "progress_percentage"]
+                    )
 
                 finally:
                     resume.file.close()
@@ -148,6 +177,10 @@ def generate_application_export(export_id):
             f"{timezone.now().strftime('%Y%m%d-%H%M%S')}.zip"
         )
 
+        export.current_step = ApplicationExport.Step.FINALIZING
+        export.progress_percentage = 95
+        export.save(update_fields=["current_step", "progress_percentage"])
+
         export.file.save(
             filename,
             ContentFile(zip_buffer.getvalue()),
@@ -157,6 +190,8 @@ def generate_application_export(export_id):
         export.application_count = application_count
         export.resume_count = resume_count
         export.status = ApplicationExport.Status.COMPLETED
+        export.current_step = ApplicationExport.Step.COMPLETED
+        export.progress_percentage = 100
         export.completed_at = timezone.now()
 
         export.save(
@@ -165,18 +200,22 @@ def generate_application_export(export_id):
                 "application_count",
                 "resume_count",
                 "status",
+                "current_step",
+                "progress_percentage",
                 "completed_at",
             ]
         )
 
     except Exception as exc:
         export.status = ApplicationExport.Status.FAILED
+        export.current_step = ApplicationExport.Step.FAILED
         export.error_message = str(exc)
         export.completed_at = timezone.now()
 
         export.save(
             update_fields=[
                 "status",
+                "current_step",
                 "error_message",
                 "completed_at",
             ]

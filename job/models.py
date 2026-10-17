@@ -227,6 +227,14 @@ class ApplicationExport(models.Model):
         COMPLETED = "completed", "Completed"
         FAILED = "failed", "Failed"
 
+    class Step(models.TextChoices):
+        QUEUED = "queued", "Queued"
+        BUILDING_SPREADSHEET = "building_spreadsheet", "Building spreadsheet"
+        ADDING_RESUMES = "adding_resumes", "Adding resumes"
+        FINALIZING = "finalizing", "Finalizing"
+        COMPLETED = "completed", "Completed"
+        FAILED = "failed", "Failed"
+
     requested_by = models.ForeignKey(
         "users.User",
         on_delete=models.PROTECT,
@@ -240,6 +248,16 @@ class ApplicationExport(models.Model):
         choices=Status.choices,
         default=Status.PENDING,
     )
+    current_step = models.CharField(
+        max_length=30,
+        choices=Step.choices,
+        default=Step.QUEUED,
+    )
+    progress_percentage = models.PositiveSmallIntegerField(default=0)
+    total_applications = models.PositiveIntegerField(default=0)
+    processed_applications = models.PositiveIntegerField(default=0)
+    total_resumes = models.PositiveIntegerField(default=0)
+    processed_resumes = models.PositiveIntegerField(default=0)
 
     file = models.FileField(
         upload_to="media/exports/",

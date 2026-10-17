@@ -1,10 +1,13 @@
 from django.db import transaction
+import os
+from django.http import FileResponse
 from rest_framework.viewsets import GenericViewSet, ModelViewSet
 from rest_framework import mixins
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework import status
+from rest_framework.decorators import action
 from job.models import (
     Job,
     Application,
@@ -13,6 +16,7 @@ from job.models import (
     Attribute,
     ApplicationAttributeValue,
     StudentAttributeValue,
+    ApplicationExport,
 )
 from job.serializers import (
     JobSerializer,
@@ -28,7 +32,11 @@ from job.serializers import (
     ApplicationStatusSerializer,
     ResumeSerializer,
     ResumeListSerializer,
-    ResumeCreateSerializer)
+    ResumeCreateSerializer,
+    ApplicationExportCreateSerializer,
+    ApplicationExportSerializer,
+)
+from job.tasks import generate_application_export
 from job.helpers import file_size_in_kbs
 from users.models import UserRole
 from users.helpers import is_student
@@ -215,6 +223,79 @@ class ApplicationStatusViewSet(
     permission_classes = [IsAuthenticated]
     queryset = ApplicationStatus.objects.all()
     serializer_class = ApplicationStatusSerializer
+
+
+class ApplicationExportViewSet(
+    mixins.CreateModelMixin,
+    mixins.ListModelMixin,
+    mixins.RetrieveModelMixin,
+    GenericViewSet,
+):
+    permission_classes = [IsAuthenticated]
+    queryset = (
+        ApplicationExport.objects
+        .select_related("requested_by")
+        .prefetch_related("jobs")
+        .order_by("-created_at")
+    )
+
+    def _require_staff(self):
+        if is_student(self.request.user) != "staff":
+            raise PermissionDenied("Only staff users can export applications.")
+
+    def get_serializer_class(self):
+        if self.action == "create":
+            return ApplicationExportCreateSerializer
+        return ApplicationExportSerializer
+
+    def list(self, request, *args, **kwargs):
+        self._require_staff()
+        return super().list(request, *args, **kwargs)
+
+    def create(self, request, *args, **kwargs):
+        self._require_staff()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        with transaction.atomic():
+            export = ApplicationExport.objects.create(requested_by=request.user)
+            export.jobs.add(serializer.validated_data["job"])
+            transaction.on_commit(
+                lambda: generate_application_export.delay(export.pk)
+            )
+
+        response_serializer = ApplicationExportSerializer(export)
+        return Response(
+            {"data": response_serializer.data},
+            status=status.HTTP_202_ACCEPTED,
+        )
+
+    def retrieve(self, request, *args, **kwargs):
+        self._require_staff()
+        return super().retrieve(request, *args, **kwargs)
+
+    @action(detail=True, methods=["get"])
+    def download(self, request, pk=None):
+        self._require_staff()
+        export = self.get_object()
+        if export.status != ApplicationExport.Status.COMPLETED:
+            return Response(
+                {"detail": "The export is not ready for download."},
+                status=status.HTTP_409_CONFLICT,
+            )
+        if not export.file:
+            return Response(
+                {"detail": "The completed export file is unavailable."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        export.file.open("rb")
+        return FileResponse(
+            export.file,
+            as_attachment=True,
+            filename=os.path.basename(export.file.name),
+            content_type="application/zip",
+        )
 
 
 class ResumeViewSet(ModelViewSet):

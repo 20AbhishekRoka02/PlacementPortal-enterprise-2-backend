@@ -9,6 +9,7 @@ from job.models import (
     Resume,
     StudentAttributeValue,
     ApplicationAttributeValue,
+    ApplicationExport,
 )
 from job.helpers import file_size_in_kbs
 from decimal import Decimal
@@ -22,6 +23,52 @@ class ApplicationStatusSerializer(serializers.ModelSerializer):
     class Meta:
         model = ApplicationStatus
         fields = ["id", "code", "name"]
+
+
+class ApplicationExportCreateSerializer(serializers.Serializer):
+    job_id = serializers.PrimaryKeyRelatedField(
+        queryset=Job.objects.all(),
+        source="job",
+    )
+
+
+class ApplicationExportSerializer(serializers.ModelSerializer):
+    requested_by = serializers.SerializerMethodField()
+    job = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ApplicationExport
+        fields = [
+            "id",
+            "requested_by",
+            "job",
+            "status",
+            "current_step",
+            "progress_percentage",
+            "total_applications",
+            "processed_applications",
+            "total_resumes",
+            "processed_resumes",
+            "application_count",
+            "resume_count",
+            "error_message",
+            "created_at",
+            "started_at",
+            "completed_at",
+        ]
+
+    def get_requested_by(self, obj):
+        return {
+            "id": obj.requested_by_id,
+            "email": obj.requested_by.email,
+            "full_name": obj.requested_by.get_full_name(),
+        }
+
+    def get_job(self, obj):
+        job = obj.jobs.first()
+        if job is None:
+            return None
+        return {"id": job.pk, "title": job.title}
 
 
 class ApplicationStatusField(serializers.RelatedField):

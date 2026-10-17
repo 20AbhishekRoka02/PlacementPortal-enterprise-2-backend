@@ -77,10 +77,22 @@ foreign key to `ApplicationStatus`; migration seeds legacy statuses including
 output renders a null value as `Applied`. Application updates use the default
 ModelViewSet serializer and accept a status ID or existing status name.
 
-The Django-admin Job action queues one-job application exports. `job.tasks`
-creates a ZIP containing `applications.xlsx` and readable attached resumes;
-`ApplicationExport` records pending/processing/completed/failed state and file
-metadata.
+Application exports support both the Django-admin Job action and staff-only API
+access. `POST /job/application-exports/` accepts exactly one `job_id`, creates
+an export requested by the authenticated staff user, and queues the task after
+the database transaction commits. `GET /job/application-exports/` lists every
+export to staff, and `GET /job/application-exports/<id>/` returns one export's
+status; both include the requester so the shared export history is attributable.
+`GET /job/application-exports/<id>/download/` streams the ZIP only after it has
+completed (otherwise `409 Conflict`).
+
+`job.tasks` creates a ZIP containing `applications.xlsx` and readable attached
+resumes. `ApplicationExport` records pending/processing/completed/failed state,
+step (`queued`, spreadsheet, resumes, finalizing, terminal), totals and processed
+counts for applications/resumes, percentage, timestamps, errors, and file
+metadata. Progress updates are persisted by the worker so the client polls the
+database-backed status rather than Celery state. Exports deliberately remain
+one job per request.
 
 ## Dynamic Attributes: Important Boundary
 
@@ -111,15 +123,15 @@ application or profile logic.
 - Student-only endpoints and application retrieval assume a student profile;
   staff cannot retrieve an individual application through the current API.
   `BatchViewSet` has no authentication/authorization override.
-- There is no pagination, deadline enforcement, soft deletion, or API endpoint
-  for exports. Production host/CORS settings remain permissive and should be
-  hardened before deployment.
+- There is no pagination, deadline enforcement, or soft deletion. Production
+  host/CORS settings remain permissive and should be hardened before deployment.
 
 ## Tests and Working Convention
 
 Most meaningful automated coverage is in `job/tests.py` and `company/tests.py`:
 application status migration/API behavior, roles, company migration/API behavior,
-job and dynamic-attribute creation, and atomic rollback. The other app test
+job and dynamic-attribute creation, atomic rollback, and staff export creation,
+visibility, download gating, and persisted task progress. The other app test
 files are empty shells. Run the focused app test first, then broader tests when
 practical.
 

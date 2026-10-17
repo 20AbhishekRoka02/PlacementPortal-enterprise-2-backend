@@ -2,18 +2,23 @@ from decimal import Decimal
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
+from django.core.files.base import ContentFile
+from django.core.files.base import ContentFile
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import connection
 from django.test import TestCase, TransactionTestCase, override_settings
 from django.db.migrations.executor import MigrationExecutor
 from rest_framework.test import APIClient
 from job.serializers import JobCreateSerializer
+from job.tasks import generate_application_export
 
 from company.models import Company
 from configs.models import ResumeConfig
 from course.models import Batch, Course
 from job.models import (
     Application,
+    ApplicationExport,
+    ApplicationExport,
     ApplicationAttributeValue,
     ApplicationStatus,
     Attribute,
@@ -545,6 +550,197 @@ class ApplicationStatusTests(TestCase):
         self.assertFalse(Application.objects.filter(student=self.student, job=self.job).exists())
         self.assertEqual(ApplicationAttributeValue.objects.count(), 0)
         self.assertEqual(StudentAttributeValue.objects.count(), 0)
+
+    def test_staff_can_request_an_export_and_its_task_is_queued_after_commit(self):
+        staff_client = APIClient()
+        staff_client.force_authenticate(self.staff_user)
+
+        with patch("job.views.generate_application_export.delay") as delay:
+            with self.captureOnCommitCallbacks(execute=True):
+                response = staff_client.post(
+                    "/job/application-exports/",
+                    {"job_id": self.job.pk},
+                    format="json",
+                )
+
+        self.assertEqual(response.status_code, 202)
+        export = ApplicationExport.objects.get(pk=response.data["data"]["id"])
+        self.assertEqual(export.requested_by, self.staff_user)
+        self.assertEqual(export.jobs.get(), self.job)
+        self.assertEqual(export.status, ApplicationExport.Status.PENDING)
+        self.assertEqual(export.current_step, ApplicationExport.Step.QUEUED)
+        self.assertEqual(response.data["data"]["requested_by"]["email"], self.staff_user.email)
+        delay.assert_called_once_with(export.pk)
+
+    def test_exports_are_visible_to_all_staff_but_not_students(self):
+        export = ApplicationExport.objects.create(requested_by=self.staff_user)
+        export.jobs.add(self.job)
+        other_staff = User.objects.create_user(
+            username="other-placement-officer",
+            email="other-placement-officer@example.com",
+            password="password",
+            role=UserRole.PLACEMENT_OFFICER,
+        )
+        staff_client = APIClient()
+        staff_client.force_authenticate(other_staff)
+
+        list_response = staff_client.get("/job/application-exports/")
+        detail_response = staff_client.get(f"/job/application-exports/{export.pk}/")
+
+        self.assertEqual(list_response.status_code, 200)
+        self.assertEqual(list_response.data[0]["id"], export.pk)
+        self.assertEqual(detail_response.status_code, 200)
+        self.assertEqual(
+            detail_response.data["requested_by"]["email"],
+            self.staff_user.email,
+        )
+
+        student_response = self.client.get("/job/application-exports/")
+        self.assertEqual(student_response.status_code, 403)
+
+    def test_completed_export_can_be_downloaded_by_any_staff_user(self):
+        export = ApplicationExport.objects.create(
+            requested_by=self.staff_user,
+            status=ApplicationExport.Status.COMPLETED,
+            current_step=ApplicationExport.Step.COMPLETED,
+            progress_percentage=100,
+        )
+        export.jobs.add(self.job)
+        export.file.save("applications.zip", ContentFile(b"zip-content"), save=True)
+
+        other_staff = User.objects.create_user(
+            username="download-placement-officer",
+            email="download-placement-officer@example.com",
+            password="password",
+            role=UserRole.PLACEMENT_OFFICER,
+        )
+        staff_client = APIClient()
+        staff_client.force_authenticate(other_staff)
+
+        response = staff_client.get(
+            f"/job/application-exports/{export.pk}/download/"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/zip")
+        self.assertEqual(b"".join(response.streaming_content), b"zip-content")
+
+    def test_pending_export_cannot_be_downloaded(self):
+        export = ApplicationExport.objects.create(requested_by=self.staff_user)
+        export.jobs.add(self.job)
+        staff_client = APIClient()
+        staff_client.force_authenticate(self.staff_user)
+
+        response = staff_client.get(
+            f"/job/application-exports/{export.pk}/download/"
+        )
+
+        self.assertEqual(response.status_code, 409)
+
+    def test_export_task_persists_completed_progress_and_counts(self):
+        self.create_application(resume=self.resume)
+        export = ApplicationExport.objects.create(requested_by=self.staff_user)
+        export.jobs.add(self.job)
+
+        generate_application_export(export.pk)
+
+        export.refresh_from_db()
+        self.assertEqual(export.status, ApplicationExport.Status.COMPLETED)
+        self.assertEqual(export.current_step, ApplicationExport.Step.COMPLETED)
+        self.assertEqual(export.progress_percentage, 100)
+        self.assertEqual(export.total_applications, 1)
+        self.assertEqual(export.processed_applications, 1)
+        self.assertEqual(export.total_resumes, 1)
+        self.assertEqual(export.processed_resumes, 1)
+        self.assertEqual(export.application_count, 1)
+        self.assertEqual(export.resume_count, 1)
+        self.assertTrue(export.file.name.endswith(".zip"))
+
+    def test_staff_can_request_an_export_and_its_task_is_queued_after_commit(self):
+        staff_client = APIClient()
+        staff_client.force_authenticate(self.staff_user)
+
+        with patch("job.views.generate_application_export.delay") as delay:
+            with self.captureOnCommitCallbacks(execute=True):
+                response = staff_client.post(
+                    "/job/application-exports/",
+                    {"job_id": self.job.pk},
+                    format="json",
+                )
+
+        self.assertEqual(response.status_code, 202)
+        export = ApplicationExport.objects.get(pk=response.data["data"]["id"])
+        self.assertEqual(export.requested_by, self.staff_user)
+        self.assertEqual(export.jobs.get(), self.job)
+        self.assertEqual(export.status, ApplicationExport.Status.PENDING)
+        self.assertEqual(export.current_step, ApplicationExport.Step.QUEUED)
+        self.assertEqual(response.data["data"]["requested_by"]["email"], self.staff_user.email)
+        delay.assert_called_once_with(export.pk)
+
+    def test_exports_are_visible_to_all_staff_but_not_students(self):
+        export = ApplicationExport.objects.create(requested_by=self.staff_user)
+        export.jobs.add(self.job)
+        other_staff = User.objects.create_user(
+            username="other-placement-officer",
+            email="other-placement-officer@example.com",
+            password="password",
+            role=UserRole.PLACEMENT_OFFICER,
+        )
+        staff_client = APIClient()
+        staff_client.force_authenticate(other_staff)
+
+        list_response = staff_client.get("/job/application-exports/")
+        detail_response = staff_client.get(f"/job/application-exports/{export.pk}/")
+
+        self.assertEqual(list_response.status_code, 200)
+        self.assertEqual(list_response.data[0]["id"], export.pk)
+        self.assertEqual(detail_response.status_code, 200)
+        self.assertEqual(
+            detail_response.data["requested_by"]["email"],
+            self.staff_user.email,
+        )
+
+        student_response = self.client.get("/job/application-exports/")
+        self.assertEqual(student_response.status_code, 403)
+
+    def test_completed_export_can_be_downloaded_by_any_staff_user(self):
+        export = ApplicationExport.objects.create(
+            requested_by=self.staff_user,
+            status=ApplicationExport.Status.COMPLETED,
+            current_step=ApplicationExport.Step.COMPLETED,
+            progress_percentage=100,
+        )
+        export.jobs.add(self.job)
+        export.file.save("applications.zip", ContentFile(b"zip-content"), save=True)
+
+        other_staff = User.objects.create_user(
+            username="download-placement-officer",
+            email="download-placement-officer@example.com",
+            password="password",
+            role=UserRole.PLACEMENT_OFFICER,
+        )
+        staff_client = APIClient()
+        staff_client.force_authenticate(other_staff)
+
+        response = staff_client.get(
+            f"/job/application-exports/{export.pk}/download/"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/zip")
+        self.assertEqual(b"".join(response.streaming_content), b"zip-content")
+
+    def test_pending_export_cannot_be_downloaded(self):
+        export = ApplicationExport.objects.create(requested_by=self.staff_user)
+        export.jobs.add(self.job)
+        staff_client = APIClient()
+        staff_client.force_authenticate(self.staff_user)
+
+        response = staff_client.get(
+            f"/job/application-exports/{export.pk}/download/"
+        )
+
+        self.assertEqual(response.status_code, 409)
 
 
 class ApplicationStatusMigrationTests(TransactionTestCase):

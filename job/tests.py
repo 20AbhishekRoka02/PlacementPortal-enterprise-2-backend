@@ -65,6 +65,7 @@ class ApplicationStatusTests(TestCase):
             start_year=2025,
             end_year=2029,
         )
+        self.batch = batch
         self.student = Student.objects.create(user=self.student_user, batch=batch)
 
         self.staff_user = User.objects.create_user(
@@ -76,11 +77,11 @@ class ApplicationStatusTests(TestCase):
         company = Company.objects.create(name="Example Company")
         self.job = Job.objects.create(
             company=company,
-            batch=batch,
             title="Backend Engineer",
             description="Build APIs",
             location="Remote",
         )
+        self.job.batches.add(batch)
         self.resume = Resume.objects.create(
             student=self.student,
             file=SimpleUploadedFile(
@@ -286,7 +287,7 @@ class ApplicationStatusTests(TestCase):
             "/job/jobs/",
             {
                 "company": self.job.company_id,
-                "batch": self.job.batch_id,
+                "batches": [self.batch.pk],
                 "title": "Student-created job",
                 "description": "Not allowed",
                 "location": "Remote",
@@ -322,7 +323,7 @@ class ApplicationStatusTests(TestCase):
             "/job/jobs/",
             {
                 "company": self.job.company_id,
-                "batch": self.job.batch_id,
+                "batches": [self.batch.pk],
                 "title": "Data Engineer",
                 "description": "Build data systems",
                 "location": "Remote",
@@ -348,6 +349,59 @@ class ApplicationStatusTests(TestCase):
         self.assertFalse(job_attribute.filterable)
         self.assertEqual(job_attribute.order, 2)
 
+    def test_job_can_target_multiple_batches(self):
+        second_batch = Batch.objects.create(
+            course=self.batch.course,
+            start_year=2026,
+            end_year=2030,
+        )
+        staff_client = APIClient()
+        staff_client.force_authenticate(self.staff_user)
+
+        response = staff_client.post(
+            "/job/jobs/",
+            {
+                "company": self.job.company_id,
+                "batches": [self.batch.pk, second_batch.pk],
+                "title": "Multi-batch role",
+                "description": "Available to two batches",
+                "location": "Remote",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual(
+            set(response.data["batches"]),
+            {self.batch.pk, second_batch.pk},
+        )
+        created_job = Job.objects.get(pk=response.data["id"])
+        self.assertSetEqual(
+            set(created_job.batches.values_list("pk", flat=True)),
+            {self.batch.pk, second_batch.pk},
+        )
+
+        second_student_user = User.objects.create_user(
+            username="second-student",
+            email="second-student@example.com",
+            password="password",
+            role=UserRole.STUDENT,
+        )
+        Student.objects.create(user=second_student_user, batch=second_batch)
+        second_student_client = APIClient()
+        second_student_client.force_authenticate(second_student_user)
+
+        listed_jobs = second_student_client.get("/job/jobs/").data["data"]
+        self.assertIn(created_job.pk, [item["id"] for item in listed_jobs])
+        retrieved_job = second_student_client.get(
+            f"/job/jobs/{created_job.pk}/"
+        )
+        self.assertEqual(retrieved_job.status_code, 200)
+        self.assertSetEqual(
+            set(retrieved_job.data["data"]["batches"]),
+            {self.batch.name, second_batch.name},
+        )
+
     def test_invalid_or_duplicate_job_attributes_do_not_create_job(self):
         attribute = Attribute.objects.create(
             name="GPA",
@@ -357,7 +411,7 @@ class ApplicationStatusTests(TestCase):
         staff_client.force_authenticate(self.staff_user)
         payload = {
             "company": self.job.company_id,
-            "batch": self.job.batch_id,
+            "batches": [self.batch.pk],
             "title": "Data Engineer",
             "description": "Build data systems",
             "location": "Remote",
@@ -387,7 +441,7 @@ class ApplicationStatusTests(TestCase):
             "/job/jobs/",
             {
                 "company": self.job.company_id,
-                "batch": self.job.batch_id,
+                "batches": [self.batch.pk],
                 "title": "No extra fields",
                 "description": "Existing create payload remains valid",
                 "location": "Remote",
@@ -414,7 +468,7 @@ class ApplicationStatusTests(TestCase):
                     "hr_email": "hr@new.example.com",
                     "hr_phone_number": "1234567890",
                 },
-                "batch": self.job.batch_id,
+                "batches": [self.batch.pk],
                 "title": "New company job",
                 "description": "Created with its company",
                 "location": "Remote",
@@ -431,7 +485,7 @@ class ApplicationStatusTests(TestCase):
         staff_client = APIClient()
         staff_client.force_authenticate(self.staff_user)
         payload = {
-            "batch": self.job.batch_id,
+            "batches": [self.batch.pk],
             "title": "Missing company",
             "description": "Invalid request",
             "location": "Remote",
@@ -467,7 +521,7 @@ class ApplicationStatusTests(TestCase):
                 "name": "Atomic Company",
                 "hr_email": "atomic@example.com",
             },
-            "batch": self.job.batch_id,
+            "batches": [self.batch.pk],
             "title": "Atomic creation test",
             "description": "Test rollback",
             "location": "Remote",
@@ -777,7 +831,8 @@ class ApplicationStatusMigrationTests(TransactionTestCase):
         )
         student = Student.objects.create(user=student_user, batch=batch)
         company = Company.objects.create(name="Migration Company")
-        job = Job.objects.create(
+        JobModel = old_apps.get_model("job", "Job")
+        job = JobModel.objects.create(
             company=company,
             batch=batch,
             title="Migration Job",

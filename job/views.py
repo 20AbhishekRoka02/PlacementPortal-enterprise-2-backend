@@ -66,7 +66,7 @@ class JobViewSet(ModelViewSet):
         user = request.user
         a_student = is_student(user)
         if a_student == "student":
-            jobs = Job.objects.filter(batch=user.student_profile.batch)
+            jobs = Job.objects.filter(batches=user.student_profile.batch)
         elif a_student == "staff":
             jobs = self.queryset
             self.action = "list_admin"
@@ -81,7 +81,7 @@ class JobViewSet(ModelViewSet):
             a_student = is_student(user)
             try:
                 if a_student == "student":
-                    record = Job.objects.filter(pk=pk, batch=user.student_profile.batch).first()
+                    record = Job.objects.filter(pk=pk, batches=user.student_profile.batch).first()
                     if not record:
                         raise Exception(f"Record with given pk:{pk} not found")
                 elif a_student == "staff":

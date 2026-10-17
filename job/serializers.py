@@ -15,6 +15,7 @@ from job.helpers import file_size_in_kbs
 from decimal import Decimal
 from company.models import Company
 from company.serializers import CompanyCreateSerializer, CompanySerializer
+from course.models import Batch
 
 
 class ApplicationStatusSerializer(serializers.ModelSerializer):
@@ -116,6 +117,12 @@ class JobAttributeCreateSerializer(serializers.Serializer):
 
 
 class JobCreateSerializer(JobSerializer):
+    batches = serializers.PrimaryKeyRelatedField(
+        queryset=Batch.objects.all(),
+        many=True,
+        required=True,
+        allow_empty=False,
+    )
     company = serializers.PrimaryKeyRelatedField(
         queryset=Company.objects.all(),
         required=False,
@@ -147,10 +154,12 @@ class JobCreateSerializer(JobSerializer):
         job_attributes = validated_data.pop("job_attributes", [])
         company_data = validated_data.pop("company_data", None)
         company = validated_data.pop("company", None)
+        batches = validated_data.pop("batches")
         with transaction.atomic():
             if company_data is not None:
                 company = Company.objects.create(**company_data)
             job = Job.objects.create(company=company, **validated_data)
+            job.batches.set(batches)
             JobAttribute.objects.bulk_create(
                 [JobAttribute(job=job, **item) for item in job_attributes]
             )
@@ -160,11 +169,11 @@ class JobCreateSerializer(JobSerializer):
 class JobListSerializer(serializers.ModelSerializer):
     id = serializers.SerializerMethodField(read_only=True, method_name="get_id")
     company = serializers.SerializerMethodField(read_only=True, method_name="get_company_name")
-    batch = serializers.SerializerMethodField(read_only=True, method_name="get_batch_name")
+    batches = serializers.SerializerMethodField(read_only=True, method_name="get_batch_names")
     status = serializers.SerializerMethodField(read_only=True, method_name="get_application_status")
     class Meta:
         model = Job
-        fields = ['id', 'company', 'title', 'location', 'salary', 'deadline', 'batch', 'status']
+        fields = ['id', 'company', 'title', 'location', 'salary', 'deadline', 'batches', 'status']
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -177,8 +186,8 @@ class JobListSerializer(serializers.ModelSerializer):
     def get_company_name(self, obj):
         return obj.company.name
 
-    def get_batch_name(self, obj):
-        return obj.batch.name
+    def get_batch_names(self, obj):
+        return list(obj.batches.order_by("pk").values_list("name", flat=True))
 
     def get_application_status(self, obj):
         student = None
@@ -200,13 +209,13 @@ class JobListSerializer(serializers.ModelSerializer):
 class JobAdminListSerializer(serializers.ModelSerializer):
     id = serializers.SerializerMethodField(read_only=True, method_name="get_id")
     company = serializers.SerializerMethodField(read_only=True, method_name="get_company_name")
-    batch = serializers.SerializerMethodField(read_only=True, method_name="get_batch_name")
+    batches = serializers.SerializerMethodField(read_only=True, method_name="get_batch_names")
     applicants_count = serializers.SerializerMethodField(read_only=True, method_name="get_applicants_count")
     published_on = serializers.SerializerMethodField(read_only=True, method_name="get_published_on")
 
     class Meta:
         model = Job
-        fields = ['id', 'company', 'title', 'location', 'salary', 'deadline', 'batch', 'applicants_count', 'published_on']
+        fields = ['id', 'company', 'title', 'location', 'salary', 'deadline', 'batches', 'applicants_count', 'published_on']
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -218,8 +227,8 @@ class JobAdminListSerializer(serializers.ModelSerializer):
     def get_company_name(self, obj):
         return obj.company.name
 
-    def get_batch_name(self, obj):
-        return obj.batch.name
+    def get_batch_names(self, obj):
+        return list(obj.batches.order_by("pk").values_list("name", flat=True))
 
     def get_published_on(self, obj):
         return obj.created_at

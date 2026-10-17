@@ -47,8 +47,12 @@ or `ADMIN`, `UNIVERSITY`, and `PLACEMENT_OFFICER` roles.
 ## Core Data Model and Flows
 
 `Course` owns `Batch`; a `Student` is a one-to-one User profile and can belong
-to one batch. A `Job` belongs to one Company and Batch. Students see only jobs
-for their batch; staff see all jobs and the applications embedded in job detail.
+to one batch. A `Job` belongs to one Company and one or more Batches. Job
+creation accepts `batches` as a non-empty list of batch IDs. Students see jobs
+linked to their batch; staff see all jobs and the applications embedded in job
+detail. Job list/detail responses expose batch names under `batches`. The
+schema migration drops the old single-batch relation without migrating its
+assignments; existing data is managed separately.
 
 Staff create an Attribute first (`POST /job/attributes/`), then create a Job.
 A job payload supplies exactly one of an existing `company` ID or write-only

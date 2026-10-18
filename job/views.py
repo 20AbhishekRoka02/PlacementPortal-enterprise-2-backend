@@ -191,14 +191,18 @@ class ApplicationViewSet(ModelViewSet):
 
     def retrieve(self, request, pk=None):
         if pk:
-            student = request.user.student_profile
-            try:
-                record = Application.objects.filter(pk=pk, student=student).first()
-                if not record:
-                    raise Exception(f"Record with given pk:{pk} not found")
-            except Exception as e:
-                print("Error: ", e)
-                return Response(status=status.HTTP_404_NOT_FOUND)
+            user_type = is_student(request.user)
+            if user_type == "staff":
+                record = Application.objects.filter(pk=pk).first()
+            else:
+                student = request.user.student_profile
+                try:
+                    record = Application.objects.filter(pk=pk, student=student).first()
+                    if not record:
+                        raise Exception(f"Record with given pk:{pk} not found")
+                except Exception as e:
+                    print("Error: ", e)
+                    return Response(status=status.HTTP_404_NOT_FOUND)
         serializer = self.get_serializer_class()
         print("serializer is: ", serializer)
         return Response({"data": serializer(record, context={"request": request}).data})
